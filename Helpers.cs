@@ -46,12 +46,13 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             // to RGB pixels.
             int minDepth = 1500;
             int maxDepth = 2230;
+            int intervalHeight = (maxDepth-minDepth);
 
-            int MaxDepthDistanceOffset = maxDepth - minDepth;
+            int currentDepthRange = maxDepth - minDepth;
 
-            int newMax = depth - minDepth;
+            int currentMax = depth - minDepth;
             if (depth < maxDepth && depth > minDepth)
-                return (byte)((255 * newMax / (MaxDepthDistanceOffset)));
+                return (byte)(255-(255 * currentMax/currentDepthRange));
             else
                 return (byte)0;
         }

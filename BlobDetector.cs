@@ -54,8 +54,12 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             hulls.Clear();
             quadrilaterals.Clear();
 
-            //Create bmp
             Bitmap depthBitmap = Helpers.writeableBitmapToBitmap(writeBitmap);
+
+            //blobCounter.BackgroundThreshold = System.Drawing.Color.FromArgb(10,10,10);
+            blobCounter.FilterBlobs = true;
+            blobCounter.MaxHeight = 90;
+            blobCounter.MaxWidth = 90;
             blobCounter.ProcessImage(depthBitmap);
             blobs = blobCounter.GetObjectsInformation();
 
@@ -105,14 +109,62 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
             depthBitmap = DrawHighlights(depthBitmap);
 
-            BitmapSource bitsrc = Helpers.ToBitmapSource(depthBitmap);
+            //depthBitmap = detectCircles(depthBitmap);
+
+            BitmapSource bitmapSource = Helpers.ToBitmapSource(depthBitmap);
 
 
 
-            return bitsrc;
+            return bitmapSource;
         }
 
 
+        private Bitmap detectCircles(Bitmap depthBitmap) {
+
+            Bitmap temp = new Bitmap(depthBitmap.Width, depthBitmap.Height);
+            Graphics g = Graphics.FromImage(temp);
+            g.DrawImage(depthBitmap, new Rectangle(0, 0, depthBitmap.Width, depthBitmap.Height), 0, 0, depthBitmap.Width, depthBitmap.Height, GraphicsUnit.Pixel);
+
+            System.Drawing.Pen bluePen = new System.Drawing.Pen(System.Drawing.Color.Blue, 2);
+
+            SimpleShapeChecker shapeChecker = new SimpleShapeChecker();
+            for (int i = 0; i < blobs.Length; i++)
+            {
+                List<IntPoint> edgePoints = blobCounter.GetBlobsEdgePoints(blobs[i]);
+
+                float relativeDistortionLimit = 0.5f;
+                float minAcceptableDistortion = 0.3f;
+
+                IntPoint minXY, maxXY;
+                PointsCloud.GetBoundingRectangle(edgePoints, out minXY, out maxXY);
+
+                IntPoint cloudSize = maxXY - minXY;
+                DoublePoint center = minXY + (DoublePoint)cloudSize / 2;
+                float radius = ((float)cloudSize.X + cloudSize.Y) / 4;
+
+                float meanDistance = 0;
+                for (int j = 0; j < edgePoints.Count; j++)
+                {
+                    meanDistance += Math.Abs((float)center.DistanceTo(edgePoints[j]) - radius);
+                }
+                meanDistance /= edgePoints.Count;
+
+                float maxDistance = Math.Max(minAcceptableDistortion,((float)cloudSize.X + cloudSize.Y)/2 * relativeDistortionLimit);
+
+                if (meanDistance <= maxDistance && radius>20) {
+                    g.DrawEllipse(bluePen,
+                        (int)(center.X - radius),
+                        (int)(center.Y - radius),
+                        (int)(radius * 2),
+                        (int)(radius * 2));
+                }
+                
+
+            }
+
+            return temp;
+        
+        }
 
 
         private Bitmap DrawHighlights(Bitmap depthBitmap) {
@@ -165,10 +217,10 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                     }
                 }
             }
-            //else
-            //{
-            //    g.FillRectangle(new SolidBrush(System.Drawing.Color.FromArgb(128, 128, 128)), rect.X + 1, rect.Y + 1, rect.Width - 2, rect.Height - 2);
-            //}
+            else
+            {
+                g.FillRectangle(new SolidBrush(System.Drawing.Color.FromArgb(128, 128, 128)), rect.X + 1, rect.Y + 1, rect.Width - 2, rect.Height - 2);
+            }
             return temp;
         }
 
