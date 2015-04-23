@@ -56,10 +56,22 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
             Bitmap depthBitmap = Helpers.writeableBitmapToBitmap(writeBitmap);
 
-            //blobCounter.BackgroundThreshold = System.Drawing.Color.FromArgb(10,10,10);
+            //Image filters
+            // create filter
+            HistogramEqualization filter = new HistogramEqualization();
+            // process image
+            filter.ApplyInPlace(depthBitmap);
+
+            //Blobcounter filter
+            blobCounter.BackgroundThreshold = System.Drawing.Color.FromArgb(230,230,230);
+            blobCounter.MaxHeight = 200;
+            blobCounter.MaxWidth = 200;
+            blobCounter.MinWidth = 100;
+            blobCounter.MinWidth = 100;
             blobCounter.FilterBlobs = true;
-            blobCounter.MaxHeight = 90;
-            blobCounter.MaxWidth = 90;
+
+
+
             blobCounter.ProcessImage(depthBitmap);
             blobs = blobCounter.GetObjectsInformation();
 
@@ -197,7 +209,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                     }
 
 
-                    HighlightType highlighting = HighlightType.ConvexHull;
+                    HighlightType highlighting = HighlightType.LeftAndRightEdges;
                     switch (highlighting)
                     {
                         case HighlightType.ConvexHull:

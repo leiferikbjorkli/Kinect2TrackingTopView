@@ -40,7 +40,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         }
 
         public static byte CalculateIntensityFromDistance(int depth)
-        {
+            {
             // This will map a distance value to a 0 - 255 range
             // for the purposes of applying the resulting value
             // to RGB pixels.
@@ -51,10 +51,31 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             int currentDepthRange = maxDepth - minDepth;
 
             int currentMax = depth - minDepth;
+
+            //if (depth < maxDepth && depth > minDepth)
+            //{
+
+            //    if (depth > (minDepth + intervalHeight))
+            //        if ((depth % intervalHeight) == 0)
+            //            return (byte)255;
+            //        else
+            //            return (byte)(255 * (depth % intervalHeight) / intervalHeight);
+            //    else if (depth < (minDepth + intervalHeight))
+            //        if ((depth % intervalHeight) == 0)
+            //            return (byte)0;
+            //        else
+            //            return (byte)(255 - Math.Ceiling((float)(255 * (depth % intervalHeight) / intervalHeight)));
+            //    else
+            //        return 100;
+            //}else
+            //    return (byte)0;
             if (depth < maxDepth && depth > minDepth)
-                return (byte)(255-(255 * currentMax/currentDepthRange));
+                return (byte)(255 - (255 * currentMax / currentDepthRange));
             else
                 return (byte)0;
+
+
+
         }
 
 
