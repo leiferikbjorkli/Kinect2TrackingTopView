@@ -68,11 +68,12 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
         private WriteableBitmap displayBmp = null;
 
+        private VideoStreamSaver writer = null;
 
         public MainWindow()
         {
 
-                
+            
             // get the kinectSensor object
             this.kinectSensor = KinectSensor.GetDefault();
 
@@ -85,7 +86,8 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             // get FrameDescription from DepthFrameSource
             this.depthFrameDescription = this.kinectSensor.DepthFrameSource.FrameDescription;
 
-            
+            writer = new VideoStreamSaver("test.avi",this.depthFrameDescription.Width, this.depthFrameDescription.Height);
+                
 
             // create the bitmap to display
             this.depthBitmap = new WriteableBitmap(this.depthFrameDescription.Width, this.depthFrameDescription.Height, 96.0, 96.0, PixelFormats.Gray8, null);
@@ -168,6 +170,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         /// <param name="e">event arguments</param>
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
+            writer.close();
             if (this.depthFrameReader != null)
             {
                 // DepthFrameReader is IDisposable
@@ -198,27 +201,29 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                 if (depthFrame != null)
                 {
 
-                    depthFrame.CopyFrameDataToArray(frameData);
-                    depthFrameToCameraSpace(frameData);
-                    //// the fastest way to process the body index data is to directly access 
-                    //// the underlying buffer
-                    //using (Microsoft.Kinect.KinectBuffer depthBuffer = depthFrame.LockImageBuffer())
-                    //{
-                    //    // verify data and write the color data to the display bitmap
-                    //    if (((this.depthFrameDescription.Width * this.depthFrameDescription.Height) == (depthBuffer.Size / this.depthFrameDescription.BytesPerPixel)) &&
-                    //        (this.depthFrameDescription.Width == this.depthBitmap.PixelWidth) && (this.depthFrameDescription.Height == this.depthBitmap.PixelHeight))
-                    //    {
-                    //        // Note: In order to see the full range of depth (including the less reliable far field depth)
-                    //        // we are setting maxDepth to the extreme potential depth threshold
-                    //        ushort maxDepth = ushort.MaxValue;
+                    //CameraSpace coordinates
+                    //depthFrame.CopyFrameDataToArray(frameData);
+                    //depthFrameToCameraSpace(frameData);
 
-                    //        // If you wish to filter by reliable depth distance, uncomment the following line:
-                    //        //// maxDepth = depthFrame.DepthMaxReliableDistance
-                            
-                    //        this.ProcessDepthFrameData(depthBuffer.UnderlyingBuffer, depthBuffer.Size, depthFrame.DepthMinReliableDistance, maxDepth);
-                    //        depthFrameProcessed = true;
-                    //    }
-                    //}
+                    // the fastest way to process the body index data is to directly access 
+                    // the underlying buffer
+                    using (Microsoft.Kinect.KinectBuffer depthBuffer = depthFrame.LockImageBuffer())
+                    {
+                        // verify data and write the color data to the display bitmap
+                        if (((this.depthFrameDescription.Width * this.depthFrameDescription.Height) == (depthBuffer.Size / this.depthFrameDescription.BytesPerPixel)) &&
+                            (this.depthFrameDescription.Width == this.depthBitmap.PixelWidth) && (this.depthFrameDescription.Height == this.depthBitmap.PixelHeight))
+                        {
+                            // Note: In order to see the full range of depth (including the less reliable far field depth)
+                            // we are setting maxDepth to the extreme potential depth threshold
+                            ushort maxDepth = ushort.MaxValue;
+
+                            // If you wish to filter by reliable depth distance, uncomment the following line:
+                            //// maxDepth = depthFrame.DepthMaxReliableDistance
+
+                            this.ProcessDepthFrameData(depthBuffer.UnderlyingBuffer, depthBuffer.Size, depthFrame.DepthMinReliableDistance, maxDepth);
+                            depthFrameProcessed = true;
+                        }
+                    }
                 }
             }
 
@@ -271,7 +276,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                 0);
 
 
-            WriteableBitmap processedBitmap = new WriteableBitmap(detector.ProcessImage(this.depthBitmap));
+            WriteableBitmap processedBitmap = new WriteableBitmap(detector.ProcessImage(this.depthBitmap,writer));
             byte[] processedPixels = new byte[this.depthFrameDescription.Width * this.depthFrameDescription.Height * processedBitmap.Format.BitsPerPixel / 8];
             
             processedBitmap.CopyPixels(processedPixels, processedBitmap.PixelWidth*processedBitmap.Format.BitsPerPixel/8, 0);

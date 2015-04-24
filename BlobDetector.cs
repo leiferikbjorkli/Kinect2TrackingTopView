@@ -46,7 +46,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             this.blobCounter = new BlobCounter();
         }
 
-        public BitmapSource ProcessImage(WriteableBitmap writeBitmap)
+        public BitmapSource ProcessImage(WriteableBitmap writeBitmap, VideoStreamSaver writer)
         {
 
             leftEdges.Clear();
@@ -61,12 +61,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
 
 
-
-
-
-            MotionDetector motionDetector = new MotionDetector(new CustomFrameDifferenceDetector(), new MotionAreaHighlighting());
-
-            float ret = motionDetector.ProcessFrame(depthBitmap);
+            writer.addFrame(depthBitmap);
                 
 
 
