@@ -10,6 +10,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.IO;
 using System.Drawing;
+using System.Drawing.Imaging;
 
 namespace Microsoft.Samples.Kinect.DepthBasics
 {
@@ -134,5 +135,12 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             [return: MarshalAs(UnmanagedType.Bool)]
             internal static extern bool DeleteObject(IntPtr hObject);
         }
+
+
+
+
+    
     }
+
+
 }

@@ -191,29 +191,34 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         {
             bool depthFrameProcessed = false;
 
+            ushort[] frameData = new ushort[depthFrameDescription.Width*depthFrameDescription.Height];
+
             using (DepthFrame depthFrame = e.FrameReference.AcquireFrame())
             {
                 if (depthFrame != null)
                 {
-                    // the fastest way to process the body index data is to directly access 
-                    // the underlying buffer
-                    using (Microsoft.Kinect.KinectBuffer depthBuffer = depthFrame.LockImageBuffer())
-                    {
-                        // verify data and write the color data to the display bitmap
-                        if (((this.depthFrameDescription.Width * this.depthFrameDescription.Height) == (depthBuffer.Size / this.depthFrameDescription.BytesPerPixel)) &&
-                            (this.depthFrameDescription.Width == this.depthBitmap.PixelWidth) && (this.depthFrameDescription.Height == this.depthBitmap.PixelHeight))
-                        {
-                            // Note: In order to see the full range of depth (including the less reliable far field depth)
-                            // we are setting maxDepth to the extreme potential depth threshold
-                            ushort maxDepth = ushort.MaxValue;
 
-                            // If you wish to filter by reliable depth distance, uncomment the following line:
-                            //// maxDepth = depthFrame.DepthMaxReliableDistance
+                    depthFrame.CopyFrameDataToArray(frameData);
+                    depthFrameToCameraSpace(frameData);
+                    //// the fastest way to process the body index data is to directly access 
+                    //// the underlying buffer
+                    //using (Microsoft.Kinect.KinectBuffer depthBuffer = depthFrame.LockImageBuffer())
+                    //{
+                    //    // verify data and write the color data to the display bitmap
+                    //    if (((this.depthFrameDescription.Width * this.depthFrameDescription.Height) == (depthBuffer.Size / this.depthFrameDescription.BytesPerPixel)) &&
+                    //        (this.depthFrameDescription.Width == this.depthBitmap.PixelWidth) && (this.depthFrameDescription.Height == this.depthBitmap.PixelHeight))
+                    //    {
+                    //        // Note: In order to see the full range of depth (including the less reliable far field depth)
+                    //        // we are setting maxDepth to the extreme potential depth threshold
+                    //        ushort maxDepth = ushort.MaxValue;
+
+                    //        // If you wish to filter by reliable depth distance, uncomment the following line:
+                    //        //// maxDepth = depthFrame.DepthMaxReliableDistance
                             
-                            this.ProcessDepthFrameData(depthBuffer.UnderlyingBuffer, depthBuffer.Size, depthFrame.DepthMinReliableDistance, maxDepth);
-                            depthFrameProcessed = true;
-                        }
-                    }
+                    //        this.ProcessDepthFrameData(depthBuffer.UnderlyingBuffer, depthBuffer.Size, depthFrame.DepthMinReliableDistance, maxDepth);
+                    //        depthFrameProcessed = true;
+                    //    }
+                    //}
                 }
             }
 
@@ -252,7 +257,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
                 this.depthPixels[i] = Helpers.CalculateIntensityFromDistance(depth);
             }
-        }
+        } 
 
         /// <summary>
         /// Renders color pixels into the writeableBitmap.
@@ -290,6 +295,15 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                                                             : Properties.Resources.SensorNotAvailableStatusText;
         }
 
+
+        private void depthFrameToCameraSpace(ushort[] depthFrameData) {
+
+            CameraSpacePoint[] cameraPoints = new CameraSpacePoint[depthFrameDescription.Width*depthFrameDescription.Height];
+
+            CoordinateMapper coordinateMapper = this.kinectSensor.CoordinateMapper;
+
+            coordinateMapper.MapDepthFrameToCameraSpace(depthFrameData, cameraPoints);
+        }
 
     }
 }

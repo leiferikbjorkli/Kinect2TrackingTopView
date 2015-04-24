@@ -11,6 +11,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Drawing;
 using System.Drawing.Imaging;
+using AForge.Vision.Motion;
+
 
 
 namespace Microsoft.Samples.Kinect.DepthBasics
@@ -56,70 +58,79 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
             Bitmap depthBitmap = Helpers.writeableBitmapToBitmap(writeBitmap);
 
-            //Image filters
-            // create filter
-            HistogramEqualization filter = new HistogramEqualization();
-            // process image
-            filter.ApplyInPlace(depthBitmap);
-
-            //Blobcounter filter
-            blobCounter.BackgroundThreshold = System.Drawing.Color.FromArgb(230,230,230);
-            blobCounter.MaxHeight = 200;
-            blobCounter.MaxWidth = 200;
-            blobCounter.MinWidth = 100;
-            blobCounter.MinWidth = 100;
-            blobCounter.FilterBlobs = true;
 
 
 
-            blobCounter.ProcessImage(depthBitmap);
-            blobs = blobCounter.GetObjectsInformation();
-
-            GrahamConvexHull grahamScan = new GrahamConvexHull();
-
-            foreach(Blob blob in blobs){
-
-                List<IntPoint> leftEdge = new List<IntPoint>();
-                List<IntPoint> rightEdge = new List<IntPoint>();
-                List<IntPoint> topEdge = new List<IntPoint>();
-                List<IntPoint> bottomEdge = new List<IntPoint>();
-
-                // collect edge points
-                blobCounter.GetBlobsLeftAndRightEdges(blob, out leftEdge, out rightEdge);
-                blobCounter.GetBlobsTopAndBottomEdges(blob, out topEdge, out bottomEdge);
-
-                leftEdges.Add(blob.ID, leftEdge);
-                rightEdges.Add(blob.ID, rightEdge);
-                topEdges.Add(blob.ID, topEdge);
-                bottomEdges.Add(blob.ID, bottomEdge);
-
-                // find convex hull
-                List<IntPoint> edgePoints = new List<IntPoint>();
-                edgePoints.AddRange(leftEdge);
-                edgePoints.AddRange(rightEdge);
-
-                List<IntPoint> hull = grahamScan.FindHull(edgePoints);
-                hulls.Add(blob.ID, hull);
 
 
-                List<IntPoint> quadrilateral = null;
 
-                // find quadrilateral
-                if (hull.Count < 4)
-                {
-                    quadrilateral = new List<IntPoint>(hull);
-                }
-                else
-                {
-                    quadrilateral = PointsCloud.FindQuadrilateralCorners(hull);
-                }
-                quadrilaterals.Add(blob.ID, quadrilateral);
+            MotionDetector motionDetector = new MotionDetector(new CustomFrameDifferenceDetector(), new MotionAreaHighlighting());
+
+            float ret = motionDetector.ProcessFrame(depthBitmap);
+                
+
+
+
+
+
+            ////Blobcounter filter
+            //blobCounter.BackgroundThreshold = System.Drawing.Color.FromArgb(230,230,230);
+            //blobCounter.MaxHeight = 200;
+            //blobCounter.MaxWidth = 200;
+            //blobCounter.MinWidth = 100;
+            //blobCounter.MinWidth = 100;
+            //blobCounter.FilterBlobs = true;
+
+
+
+            //blobCounter.ProcessImage(depthBitmap);
+            //blobs = blobCounter.GetObjectsInformation();
+
+            //GrahamConvexHull grahamScan = new GrahamConvexHull();
+
+            //foreach(Blob blob in blobs){
+
+            //    List<IntPoint> leftEdge = new List<IntPoint>();
+            //    List<IntPoint> rightEdge = new List<IntPoint>();
+            //    List<IntPoint> topEdge = new List<IntPoint>();
+            //    List<IntPoint> bottomEdge = new List<IntPoint>();
+
+            //    // collect edge points
+            //    blobCounter.GetBlobsLeftAndRightEdges(blob, out leftEdge, out rightEdge);
+            //    blobCounter.GetBlobsTopAndBottomEdges(blob, out topEdge, out bottomEdge);
+
+            //    leftEdges.Add(blob.ID, leftEdge);
+            //    rightEdges.Add(blob.ID, rightEdge);
+            //    topEdges.Add(blob.ID, topEdge);
+            //    bottomEdges.Add(blob.ID, bottomEdge);
+
+            //    // find convex hull
+            //    List<IntPoint> edgePoints = new List<IntPoint>();
+            //    edgePoints.AddRange(leftEdge);
+            //    edgePoints.AddRange(rightEdge);
+
+            //    List<IntPoint> hull = grahamScan.FindHull(edgePoints);
+            //    hulls.Add(blob.ID, hull);
+
+
+            //    List<IntPoint> quadrilateral = null;
+
+            //    // find quadrilateral
+            //    if (hull.Count < 4)
+            //    {
+            //        quadrilateral = new List<IntPoint>(hull);
+            //    }
+            //    else
+            //    {
+            //        quadrilateral = PointsCloud.FindQuadrilateralCorners(hull); 
+            //    }
+            //    quadrilaterals.Add(blob.ID, quadrilateral);
 
                 
             
-            }
+            //}
 
-            depthBitmap = DrawHighlights(depthBitmap);
+            //depthBitmap = DrawHighlights(depthBitmap);
 
             //depthBitmap = detectCircles(depthBitmap);
 
@@ -262,6 +273,42 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             {
                 g.DrawLine(pen, points[0], points[0]);
             }
+        }
+
+        private static Bitmap noiseFilter(Bitmap depthBitmap) {
+
+            int threads = AForge.Parallel.ThreadsCount;
+            threads = 3;
+            int blockHeight = depthBitmap.Height/threads;
+            List<Bitmap> blockList = new Bitmap[threads-1].ToList();
+
+
+            for (int i = 0; i < threads; i++)
+            {
+                Bitmap temp = new Bitmap(depthBitmap);
+                Rectangle rect = new Rectangle(0,blockHeight*i, depthBitmap.Width,blockHeight);
+                Bitmap bitmapBlock = temp.Clone(rect, temp.PixelFormat);
+                blockList.Insert(i,bitmapBlock);
+            }
+
+            AForge.Parallel.For(0, blockList.Count, delegate(int i)
+            {
+                ImageFilters filter = new ImageFilters();
+                Bitmap filteredBitmap = filter.MedianFilter(blockList[i], 3, 0, true);
+                blockList.Insert(i, filteredBitmap);
+            });
+
+            //indexed
+            System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(depthBitmap);
+
+            for (int i = 0; i < threads; i++)
+            {
+                g.DrawImage(blockList[i], 0, blockHeight * i, depthBitmap.Width, depthBitmap.Height);
+            }
+
+
+            return depthBitmap;
+        
         }
 
 
