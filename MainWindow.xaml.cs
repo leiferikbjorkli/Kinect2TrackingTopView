@@ -7,6 +7,7 @@
 namespace Microsoft.Samples.Kinect.DepthBasics
 {
     using System;
+    using System.Collections.Generic;
     using System.ComponentModel;
     using System.Diagnostics;
     using System.Globalization;
@@ -16,15 +17,32 @@ namespace Microsoft.Samples.Kinect.DepthBasics
     using System.Windows.Media.Imaging;
     using Microsoft.Kinect;
 
+
     /// <summary>
     /// Interaction logic for MainWindow
     /// </summary>
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
+        // Optimize by accessing backbuffer of writablebitmap directly
 
- 
 
-        private BlobDetector detector = null;
+        private const int frameWidth = 512;
+        private const int frameHeight = 424;
+        private const int frameLength = frameWidth * frameHeight;
+        private const int scaledFrameWidth = frameWidth / 2;
+        private const int scaledFrameHeight = frameHeight / 2;
+        private const int scaledFrameLength = scaledFrameHeight * scaledFrameWidth;
+
+        
+        private WriteableBitmap scaledDepthBitmap = new WriteableBitmap(scaledFrameWidth, scaledFrameHeight, 96.0, 96.0, PixelFormats.Gray8, null);
+        private CameraSpacePoint[] scaledCameraSpacePoints = new CameraSpacePoint[scaledFrameLength];
+        private byte[] scaledDepthPixels = new byte[scaledFrameLength];
+        private CameraSpacePoint[] pointCloud = new CameraSpacePoint[scaledFrameLength];
+
+        private CoordinateMapper coordinateMapper = null;
+
+        private CameraSpacePoint[] cameraSpacePoints = null;
+
 
         /// <summary>
         /// Map depth range to byte range
@@ -70,6 +88,8 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
         private VideoStreamSaver writer = null;
 
+
+
         public MainWindow()
         {
 
@@ -86,7 +106,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             // get FrameDescription from DepthFrameSource
             this.depthFrameDescription = this.kinectSensor.DepthFrameSource.FrameDescription;
 
-            writer = new VideoStreamSaver("test.avi",this.depthFrameDescription.Width, this.depthFrameDescription.Height);
+            writer = new VideoStreamSaver("testSeveral.avi",this.depthFrameDescription.Width, this.depthFrameDescription.Height);
                 
 
             // create the bitmap to display
@@ -95,7 +115,12 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             // allocate space to put the pixels being received and converted
             this.depthPixels = new byte[this.depthFrameDescription.Width * this.depthFrameDescription.Height * this.depthBitmap.Format.BitsPerPixel / 8];
 
-            this.detector = new BlobDetector();
+
+            this.coordinateMapper = this.kinectSensor.CoordinateMapper;
+
+            this.cameraSpacePoints = new CameraSpacePoint[depthFrameDescription.Width * depthFrameDescription.Height];
+
+
 
             this.displayBmp = new WriteableBitmap(this.depthFrameDescription.Width, this.depthFrameDescription.Height, 96.0, 96.0, PixelFormats.Bgra32, null);
 
@@ -133,7 +158,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         {
             get
             {
-                return this.displayBmp;
+                return this.scaledDepthBitmap;
             }
 
         }
@@ -185,6 +210,8 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             }
         }
 
+
+
         /// <summary>
         /// Handles the depth frame data arriving from the sensor
         /// </summary>
@@ -192,7 +219,6 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         /// <param name="e">event arguments</param>
         private void Reader_FrameArrived(object sender, DepthFrameArrivedEventArgs e)
         {
-            bool depthFrameProcessed = false;
 
             ushort[] frameData = new ushort[depthFrameDescription.Width*depthFrameDescription.Height];
 
@@ -200,82 +226,91 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             {
                 if (depthFrame != null)
                 {
+                    int a = GlobUtils.getIndex(0,0);
+                    int b = GlobUtils.getIndex(10,0);
+                    int c = GlobUtils.getIndex(0,10);
 
-                    //CameraSpace coordinates
-                    //depthFrame.CopyFrameDataToArray(frameData);
-                    //depthFrameToCameraSpace(frameData);
+                    int area = GlobUtils.calculatePixelAreaFromIndexes(a,b,c);
 
-                    // the fastest way to process the body index data is to directly access 
-                    // the underlying buffer
-                    using (Microsoft.Kinect.KinectBuffer depthBuffer = depthFrame.LockImageBuffer())
+
+                    List<IndexRectangle> candidateRects = new List<IndexRectangle>();
+                    Stopwatch stopwatch = new Stopwatch();
+                    stopwatch.Start();
+                    depthFrame.CopyFrameDataToArray(frameData);
+                    depthFrameReader.IsPaused = true;
+                    this.coordinateMapper.MapDepthFrameToCameraSpace(frameData, this.cameraSpacePoints);
+                    stopwatch.Stop();
+                    Console.WriteLine("Kinect: {0}", stopwatch.ElapsedMilliseconds);
+
+                    stopwatch.Start();
+                    this.scaledCameraSpacePoints = KinectUtils.ScaleFrame(this.cameraSpacePoints);
+                    this.pointCloud = KinectUtils.CreatePointCloud(this.scaledCameraSpacePoints);
+                    stopwatch.Stop();
+                    Console.WriteLine("pointCloud: {0}", stopwatch.ElapsedMilliseconds);
+                    stopwatch.Start();
+                    this.pointCloud = ImageUtils.MedianFilter3x3(this.pointCloud);
+                    stopwatch.Stop();
+                    Console.WriteLine("filter: {0}", stopwatch.ElapsedMilliseconds);
+                    //ImageUtils.HysteresisThresholding(1, pointCloud);
+                    stopwatch.Start();
+                    candidateRects = HaarDetector.createRegions(pointCloud);
+                    stopwatch.Stop();
+                    Console.WriteLine("Haar: {0}", stopwatch.ElapsedMilliseconds);
+
+
+
+                    for (int i = 0; i < pointCloud.Length; i++)
                     {
-                        // verify data and write the color data to the display bitmap
-                        if (((this.depthFrameDescription.Width * this.depthFrameDescription.Height) == (depthBuffer.Size / this.depthFrameDescription.BytesPerPixel)) &&
-                            (this.depthFrameDescription.Width == this.depthBitmap.PixelWidth) && (this.depthFrameDescription.Height == this.depthBitmap.PixelHeight))
-                        {
-                            // Note: In order to see the full range of depth (including the less reliable far field depth)
-                            // we are setting maxDepth to the extreme potential depth threshold
-                            ushort maxDepth = ushort.MaxValue;
-
-                            // If you wish to filter by reliable depth distance, uncomment the following line:
-                            //// maxDepth = depthFrame.DepthMaxReliableDistance
-
-                            this.ProcessDepthFrameData(depthBuffer.UnderlyingBuffer, depthBuffer.Size, depthFrame.DepthMinReliableDistance, maxDepth);
-                            depthFrameProcessed = true;
-                        }
+                        this.scaledDepthPixels[i] = KinectUtils.CalculateIntensityFromCameraSpacePoint(pointCloud[i]);
                     }
-                }
-            }
 
-            if (depthFrameProcessed)
-            {
-                this.RenderDepthPixels();
+                    Stopwatch swDraw = new Stopwatch();
+                    swDraw.Start();
+                    foreach (var rect in candidateRects)
+                    {
+                        Graphics.DrawRectangle(scaledDepthPixels, rect);
+                    }
+                    swDraw.Stop();
+                    Console.WriteLine("Draw: {0}", swDraw.ElapsedMilliseconds);
+
+                    //ThreePointRectangle rect = new ThreePointRectangle(new Point(5,5),new Point(250,5),new Point(5,205));
+
+                    //Graphics.DrawRectangle(scaledDepthPixels, rect);
+                    
+
+                    this.RenderDepthPixels(candidateRects);
+                    depthFrameReader.IsPaused = false;
+                }
             }
         }
 
         /// <summary>
-        /// Directly accesses the underlying image buffer of the DepthFrame to 
-        /// create a displayable bitmap.
-        /// This function requires the /unsafe compiler option as we make use of direct
-        /// access to the native memory pointed to by the depthFrameData pointer.
-        /// </summary>
-        /// <param name="depthFrameData">Pointer to the DepthFrame image data</param>
-        /// <param name="depthFrameDataSize">Size of the DepthFrame image data</param>
-        /// <param name="minDepth">The minimum reliable depth value for the frame</param>
-        /// <param name="maxDepth">The maximum reliable depth value for the frame</param>
-        private unsafe void ProcessDepthFrameData(IntPtr depthFrameData, uint depthFrameDataSize, ushort minDepth, ushort maxDepth)
-        {
-            // depth frame data is a 16 bit value
-            ushort* frameData = (ushort*)depthFrameData;
-
-            // convert depth to a visual representation
-            for (int i = 0; i < (int)(depthFrameDataSize / this.depthFrameDescription.BytesPerPixel); ++i)
-            {
-                // Get the depth for this pixel
-                ushort depth = frameData[i];
-
-                // To convert to a byte, we're mapping the depth value to the byte range.
-                // Values outside the reliable depth range are mapped to 0 (black).
-                //this.depthPixels[i] = (byte)(depth >= minDepth && depth <= maxDepth ? (depth / MapDepthToByte) : 0);
-                
-                // Own scaling
-
-                this.depthPixels[i] = Helpers.CalculateIntensityFromDistance(depth);
-            }
-        } 
-
-        /// <summary>
         /// Renders color pixels into the writeableBitmap.
         /// </summary>
-        private void RenderDepthPixels()
+        private void RenderDepthPixels(List<IndexRectangle> candidateRects)
         {
-            this.depthBitmap.WritePixels(
-                new Int32Rect(0, 0, this.depthBitmap.PixelWidth, this.depthBitmap.PixelHeight),
-                this.depthPixels,
-                this.depthBitmap.PixelWidth*depthBitmap.Format.BitsPerPixel/8,
+            Stopwatch swRender = new Stopwatch();
+            swRender.Start();
+            this.scaledDepthBitmap.WritePixels(
+                new Int32Rect(0, 0, this.scaledDepthBitmap.PixelWidth, this.scaledDepthBitmap.PixelHeight),
+                this.scaledDepthPixels,
+                this.scaledDepthBitmap.PixelWidth * scaledDepthBitmap.Format.BitsPerPixel / 8,
                 0);
 
 
+
+
+            swRender.Stop();
+            Console.WriteLine("Render: {0}", swRender.ElapsedMilliseconds);
+
+
+            //this.depthBitmap.WritePixels(
+            //    new Int32Rect(0, 0, this.depthBitmap.PixelWidth, this.depthBitmap.PixelHeight),
+            //    this.depthPixels,
+            //    this.depthBitmap.PixelWidth*depthBitmap.Format.BitsPerPixel/8,
+            //    0);
+            
+            /*
             WriteableBitmap processedBitmap = new WriteableBitmap(detector.ProcessImage(this.depthBitmap,writer));
             byte[] processedPixels = new byte[this.depthFrameDescription.Width * this.depthFrameDescription.Height * processedBitmap.Format.BitsPerPixel / 8];
             
@@ -286,6 +321,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                 processedPixels,
                 processedBitmap.PixelWidth*processedBitmap.Format.BitsPerPixel/8,
                 0);
+             */
         }
 
         /// <summary>
@@ -298,16 +334,6 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             // on failure, set the status text
             this.StatusText = this.kinectSensor.IsAvailable ? Properties.Resources.RunningStatusText
                                                             : Properties.Resources.SensorNotAvailableStatusText;
-        }
-
-
-        private void depthFrameToCameraSpace(ushort[] depthFrameData) {
-
-            CameraSpacePoint[] cameraPoints = new CameraSpacePoint[depthFrameDescription.Width*depthFrameDescription.Height];
-
-            CoordinateMapper coordinateMapper = this.kinectSensor.CoordinateMapper;
-
-            coordinateMapper.MapDepthFrameToCameraSpace(depthFrameData, cameraPoints);
         }
 
     }

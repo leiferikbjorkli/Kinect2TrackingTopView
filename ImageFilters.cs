@@ -1,139 +1,139 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
+﻿//using System;
+//using System.Collections.Generic;
+//using System.Linq;
+//using System.Text;
+//using System.Threading.Tasks;
+//using System.Drawing;
+//using System.Drawing.Imaging;
+//using System.Runtime.InteropServices;
 
-namespace Microsoft.Samples.Kinect.DepthBasics
-{
-    class ImageFilters
-    {
+//namespace Microsoft.Samples.Kinect.DepthBasics
+//{
+//    class ImageFilters
+//    {
 
         
-        public Bitmap MedianFilter( Bitmap sourceBitmap, int matrixSize, int bias = 0, bool grayscale = false)
-        {
-            BitmapData sourceData =
-                       sourceBitmap.LockBits(new Rectangle(0, 0,
-                       sourceBitmap.Width, sourceBitmap.Height),
-                       ImageLockMode.ReadOnly,
-                       sourceBitmap.PixelFormat);
+//        public Bitmap MedianFilter( Bitmap sourceBitmap, int matrixSize, int bias = 0, bool grayscale = false)
+//        {
+//            BitmapData sourceData =
+//                       sourceBitmap.LockBits(new Rectangle(0, 0,
+//                       sourceBitmap.Width, sourceBitmap.Height),
+//                       ImageLockMode.ReadOnly,
+//                       sourceBitmap.PixelFormat);
 
 
-            byte[] pixelBuffer = new byte[sourceData.Stride *
-                                          sourceData.Height];
+//            byte[] pixelBuffer = new byte[sourceData.Stride *
+//                                          sourceData.Height];
 
 
-            byte[] resultBuffer = new byte[sourceData.Stride *
-                                           sourceData.Height];
+//            byte[] resultBuffer = new byte[sourceData.Stride *
+//                                           sourceData.Height];
 
 
-            Marshal.Copy(sourceData.Scan0, pixelBuffer, 0,
-                                       pixelBuffer.Length);
+//            Marshal.Copy(sourceData.Scan0, pixelBuffer, 0,
+//                                       pixelBuffer.Length);
 
 
-            sourceBitmap.UnlockBits(sourceData);
+//            sourceBitmap.UnlockBits(sourceData);
 
 
-            if (grayscale == true)
-            {
-                float rgb = 0;
+//            if (grayscale == true)
+//            {
+//                float rgb = 0;
 
 
-                for (int k = 0; k < pixelBuffer.Length; k += 4)
-                {
-                    rgb = pixelBuffer[k] * 0.11f;
-                    rgb += pixelBuffer[k + 1] * 0.59f;
-                    rgb += pixelBuffer[k + 2] * 0.3f;
+//                for (int k = 0; k < pixelBuffer.Length; k += 4)
+//                {
+//                    rgb = pixelBuffer[k] * 0.11f;
+//                    rgb += pixelBuffer[k + 1] * 0.59f;
+//                    rgb += pixelBuffer[k + 2] * 0.3f;
 
 
-                    pixelBuffer[k] = (byte)rgb;
-                    pixelBuffer[k + 1] = pixelBuffer[k];
-                    pixelBuffer[k + 2] = pixelBuffer[k];
-                    pixelBuffer[k + 3] = 255;
-                }
-            }
+//                    pixelBuffer[k] = (byte)rgb;
+//                    pixelBuffer[k + 1] = pixelBuffer[k];
+//                    pixelBuffer[k + 2] = pixelBuffer[k];
+//                    pixelBuffer[k + 3] = 255;
+//                }
+//            }
 
 
-            int filterOffset = (matrixSize - 1) / 2;
-            int calcOffset = 0;
+//            int filterOffset = (matrixSize - 1) / 2;
+//            int calcOffset = 0;
 
 
-            int byteOffset = 0;
+//            int byteOffset = 0;
 
-            List<int> neighbourPixels = new List<int>();
-            byte[] middlePixel;
-
-
-            for (int offsetY = filterOffset; offsetY <
-                sourceBitmap.Height - filterOffset; offsetY++)
-            {
-                for (int offsetX = filterOffset; offsetX <
-                    sourceBitmap.Width - filterOffset; offsetX++)
-                {
-                    byteOffset = offsetY *
-                                 sourceData.Stride +
-                                 offsetX * 4;
+//            List<int> neighbourPixels = new List<int>();
+//            byte[] middlePixel;
 
 
-                    neighbourPixels.Clear();
+//            for (int offsetY = filterOffset; offsetY <
+//                sourceBitmap.Height - filterOffset; offsetY++)
+//            {
+//                for (int offsetX = filterOffset; offsetX <
+//                    sourceBitmap.Width - filterOffset; offsetX++)
+//                {
+//                    byteOffset = offsetY *
+//                                 sourceData.Stride +
+//                                 offsetX * 4;
 
 
-                    for (int filterY = -filterOffset;
-                        filterY <= filterOffset; filterY++)
-                    {
-                        for (int filterX = -filterOffset;
-                            filterX <= filterOffset; filterX++)
-                        {
+//                    neighbourPixels.Clear();
 
 
-                            calcOffset = byteOffset +
-                                         (filterX * 4) +
-                                (filterY * sourceData.Stride);
+//                    for (int filterY = -filterOffset;
+//                        filterY <= filterOffset; filterY++)
+//                    {
+//                        for (int filterX = -filterOffset;
+//                            filterX <= filterOffset; filterX++)
+//                        {
 
 
-                            neighbourPixels.Add(BitConverter.ToInt32(
-                                             pixelBuffer, calcOffset));
-                        }
-                    }
+//                            calcOffset = byteOffset +
+//                                         (filterX * 4) +
+//                                (filterY * sourceData.Stride);
 
 
-                    neighbourPixels.Sort();
-
-                    middlePixel = BitConverter.GetBytes(
-                                       neighbourPixels[filterOffset]);
-
-
-                    resultBuffer[byteOffset] = middlePixel[0];
-                    resultBuffer[byteOffset + 1] = middlePixel[1];
-                    resultBuffer[byteOffset + 2] = middlePixel[2];
-                    resultBuffer[byteOffset + 3] = middlePixel[3];
-                }
-            }
+//                            neighbourPixels.Add(BitConverter.ToInt32(
+//                                             pixelBuffer, calcOffset));
+//                        }
+//                    }
 
 
-            Bitmap resultBitmap = new Bitmap(sourceBitmap.Width,
-                                             sourceBitmap.Height);
+//                    neighbourPixels.Sort();
+
+//                    middlePixel = BitConverter.GetBytes(
+//                                       neighbourPixels[filterOffset]);
 
 
-            BitmapData resultData =
-                       resultBitmap.LockBits(new Rectangle(0, 0,
-                       resultBitmap.Width, resultBitmap.Height),
-                       ImageLockMode.WriteOnly,
-                       System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+//                    resultBuffer[byteOffset] = middlePixel[0];
+//                    resultBuffer[byteOffset + 1] = middlePixel[1];
+//                    resultBuffer[byteOffset + 2] = middlePixel[2];
+//                    resultBuffer[byteOffset + 3] = middlePixel[3];
+//                }
+//            }
 
 
-            Marshal.Copy(resultBuffer, 0, resultData.Scan0,
-                                       resultBuffer.Length);
+//            Bitmap resultBitmap = new Bitmap(sourceBitmap.Width,
+//                                             sourceBitmap.Height);
 
 
-            resultBitmap.UnlockBits(resultData);
+//            BitmapData resultData =
+//                       resultBitmap.LockBits(new Square(0, 0,
+//                       resultBitmap.Width, resultBitmap.Height),
+//                       ImageLockMode.WriteOnly,
+//                       System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 
 
-            return resultBitmap;
-        }
+//            Marshal.Copy(resultBuffer, 0, resultData.Scan0,
+//                                       resultBuffer.Length);
+
+
+//            resultBitmap.UnlockBits(resultData);
+
+
+//            return resultBitmap;
+//        }
     
-    }
-}
+//    }
+//}
