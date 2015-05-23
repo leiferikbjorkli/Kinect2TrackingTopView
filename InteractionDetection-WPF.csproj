@@ -122,16 +122,8 @@
     <Compile Include="GlobUtils.cs" />
     <Compile Include="GlobVar.cs" />
     <Compile Include="HaarDetector.cs" />
-    <Compile Include="Old\BlobDetector.cs" />
-    <Compile Include="Old\Body.cs" />
     <Compile Include="Structures.cs" />
-    <Compile Include="Old\DisjointSet.cs" />
-    <Compile Include="Old\PixelEdge.cs" />
-    <Compile Include="Old\PixelVertex.cs" />
     <Compile Include="ImageUtils.cs" />
-    <Compile Include="Old\MotionTracker.cs" />
-    <Compile Include="Old\VideoStreamSaver.cs" />
-    <Compile Include="Old\ImageFilters.cs" />
     <Compile Include="KinectUtils.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
