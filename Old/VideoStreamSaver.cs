@@ -8,7 +8,7 @@ using AForge.Video.VFW;
 using System.Drawing;
 using System.Drawing.Imaging;
 
-namespace Microsoft.Samples.Kinect.DepthBasics
+namespace InteractionDetection
 {
     public class VideoStreamSaver
     {

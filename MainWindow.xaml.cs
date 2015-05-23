@@ -4,7 +4,7 @@
 // </copyright>
 //------------------------------------------------------------------------------
 
-namespace Microsoft.Samples.Kinect.DepthBasics
+namespace InteractionDetection
 {
     using System;
     using System.Collections.Generic;
@@ -21,23 +21,13 @@ namespace Microsoft.Samples.Kinect.DepthBasics
     /// <summary>
     /// Interaction logic for MainWindow
     /// </summary>
-    public partial class MainWindow : Window, INotifyPropertyChanged
+    public partial class MainWindow : Window
     {
         // Optimize by accessing backbuffer of writablebitmap directly
 
-
-        private const int frameWidth = 512;
-        private const int frameHeight = 424;
-        private const int frameLength = frameWidth * frameHeight;
-        private const int scaledFrameWidth = frameWidth / 2;
-        private const int scaledFrameHeight = frameHeight / 2;
-        private const int scaledFrameLength = scaledFrameHeight * scaledFrameWidth;
-
-        
-        private WriteableBitmap scaledDepthBitmap = new WriteableBitmap(scaledFrameWidth, scaledFrameHeight, 96.0, 96.0, PixelFormats.Gray8, null);
-        private CameraSpacePoint[] scaledCameraSpacePoints = new CameraSpacePoint[scaledFrameLength];
-        private byte[] scaledDepthPixels = new byte[scaledFrameLength];
-        private CameraSpacePoint[] pointCloud = new CameraSpacePoint[scaledFrameLength];
+        private WriteableBitmap intensityBitmap = new WriteableBitmap(GlobVar.scaledFrameWidth, GlobVar.scaledFrameHeight, 96.0, 96.0, PixelFormats.Gray8, null);
+        private byte[] intensityMap = new byte[GlobVar.scaledFrameLength];
+        private CameraSpacePoint[] pointCloud = new CameraSpacePoint[GlobVar.scaledFrameLength];
 
         private CoordinateMapper coordinateMapper = null;
 
@@ -74,26 +64,14 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         /// </summary>
         private byte[] depthPixels = null;
 
-        /// <summary>
-        /// Current status text to display
-        /// </summary>
-        private string statusText = null;
 
         /// <summary>
         /// Initializes a new instance of the MainWindow class.
         /// </summary>
         /// 
 
-        private WriteableBitmap displayBmp = null;
-
-        private VideoStreamSaver writer = null;
-
-
-
         public MainWindow()
         {
-
-            
             // get the kinectSensor object
             this.kinectSensor = KinectSensor.GetDefault();
 
@@ -106,33 +84,18 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             // get FrameDescription from DepthFrameSource
             this.depthFrameDescription = this.kinectSensor.DepthFrameSource.FrameDescription;
 
-            writer = new VideoStreamSaver("testSeveral.avi",this.depthFrameDescription.Width, this.depthFrameDescription.Height);
-                
-
             // create the bitmap to display
             this.depthBitmap = new WriteableBitmap(this.depthFrameDescription.Width, this.depthFrameDescription.Height, 96.0, 96.0, PixelFormats.Gray8, null);
 
             // allocate space to put the pixels being received and converted
             this.depthPixels = new byte[this.depthFrameDescription.Width * this.depthFrameDescription.Height * this.depthBitmap.Format.BitsPerPixel / 8];
 
-
             this.coordinateMapper = this.kinectSensor.CoordinateMapper;
 
             this.cameraSpacePoints = new CameraSpacePoint[depthFrameDescription.Width * depthFrameDescription.Height];
 
-
-
-            this.displayBmp = new WriteableBitmap(this.depthFrameDescription.Width, this.depthFrameDescription.Height, 96.0, 96.0, PixelFormats.Bgra32, null);
-
-            // set IsAvailableChanged event notifier
-            this.kinectSensor.IsAvailableChanged += this.Sensor_IsAvailableChanged;
-
             // open the sensor
             this.kinectSensor.Open();
-
-            // set the status text
-            this.StatusText = this.kinectSensor.IsAvailable ? Properties.Resources.RunningStatusText
-                                                            : Properties.Resources.NoSensorStatusText;
 
             // use the window object as the view model in this simple example
             this.DataContext = this;
@@ -140,16 +103,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             // initialize the components (controls) of the window
             this.InitializeComponent();
 
-
-            
-
         }
-
-        /// <summary>
-        /// INotifyPropertyChangedPropertyChanged event to allow window controls to bind to changeable data
-        /// </summary>
-        public event PropertyChangedEventHandler PropertyChanged;
-        
 
         /// <summary>
         /// Gets the bitmap to display
@@ -158,33 +112,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         {
             get
             {
-                return this.scaledDepthBitmap;
-            }
-
-        }
-
-        /// <summary>
-        /// Gets or sets the current status text to display
-        /// </summary>
-        public string StatusText
-        {
-            get
-            {
-                return this.statusText;
-            }
-
-            set
-            {
-                if (this.statusText != value)
-                {
-                    this.statusText = value;
-
-                    // notify any bound elements that the text has changed
-                    if (this.PropertyChanged != null)
-                    {
-                        this.PropertyChanged(this, new PropertyChangedEventArgs("StatusText"));
-                    }
-                }
+                return this.intensityBitmap;
             }
         }
 
@@ -195,7 +123,6 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         /// <param name="e">event arguments</param>
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
-            writer.close();
             if (this.depthFrameReader != null)
             {
                 // DepthFrameReader is IDisposable
@@ -210,8 +137,6 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             }
         }
 
-
-
         /// <summary>
         /// Handles the depth frame data arriving from the sensor
         /// </summary>
@@ -219,66 +144,65 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         /// <param name="e">event arguments</param>
         private void Reader_FrameArrived(object sender, DepthFrameArrivedEventArgs e)
         {
-
             ushort[] frameData = new ushort[depthFrameDescription.Width*depthFrameDescription.Height];
 
             using (DepthFrame depthFrame = e.FrameReference.AcquireFrame())
             {
                 if (depthFrame != null)
                 {
-                    int a = GlobUtils.getIndex(0,0);
-                    int b = GlobUtils.getIndex(10,0);
-                    int c = GlobUtils.getIndex(0,10);
 
-                    int area = GlobUtils.calculatePixelAreaFromIndexes(a,b,c);
-
-
-                    List<IndexRectangle> candidateRects = new List<IndexRectangle>();
+                    var candidates = new List<Point>();
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
                     depthFrame.CopyFrameDataToArray(frameData);
                     depthFrameReader.IsPaused = true;
                     this.coordinateMapper.MapDepthFrameToCameraSpace(frameData, this.cameraSpacePoints);
                     stopwatch.Stop();
-                    Console.WriteLine("Kinect: {0}", stopwatch.ElapsedMilliseconds);
+                    //Console.WriteLine("Kinect: {0}", stopwatch.ElapsedMilliseconds);
 
                     stopwatch.Start();
-                    this.scaledCameraSpacePoints = KinectUtils.ScaleFrame(this.cameraSpacePoints);
-                    this.pointCloud = KinectUtils.CreatePointCloud(this.scaledCameraSpacePoints);
+
+
+                    GlobVar.scaledCameraSpacePoints = KinectUtils.ScaleFrame(this.cameraSpacePoints);
+                    this.pointCloud = KinectUtils.CreatePointCloud(GlobVar.scaledCameraSpacePoints);
                     stopwatch.Stop();
-                    Console.WriteLine("pointCloud: {0}", stopwatch.ElapsedMilliseconds);
+                    //Console.WriteLine("pointCloud: {0}", stopwatch.ElapsedMilliseconds);
                     stopwatch.Start();
                     this.pointCloud = ImageUtils.MedianFilter3x3(this.pointCloud);
                     stopwatch.Stop();
-                    Console.WriteLine("filter: {0}", stopwatch.ElapsedMilliseconds);
-                    //ImageUtils.HysteresisThresholding(1, pointCloud);
+                    //Console.WriteLine("filter: {0}", stopwatch.ElapsedMilliseconds);
                     stopwatch.Start();
-                    candidateRects = HaarDetector.createRegions(pointCloud);
+
+
+                    CameraSpacePoint[] invertedCloud = new CameraSpacePoint[pointCloud.Length];
+                    pointCloud.CopyTo(invertedCloud, 0);
+                    KinectUtils.InvertDistanceMeasures(invertedCloud);
+                    var depthMap = new float[GlobVar.scaledFrameLength];
+                    KinectUtils.DepthMapFromCameraPoints(depthMap,invertedCloud);
+                    candidates = HaarDetector.CreateRegions(depthMap);
+
                     stopwatch.Stop();
                     Console.WriteLine("Haar: {0}", stopwatch.ElapsedMilliseconds);
 
+                    //ClassificationUtils.ConnectedComponentLabeling(depthMap,candidates);
 
 
-                    for (int i = 0; i < pointCloud.Length; i++)
+                    intensityMap = KinectUtils.CalculateIntensityFromCameraSpacePoints(pointCloud);
+
+                    foreach (var candidatePoint in candidates)
                     {
-                        this.scaledDepthPixels[i] = KinectUtils.CalculateIntensityFromCameraSpacePoint(pointCloud[i]);
+                        if (GlobUtils.BoundaryCheck(candidatePoint))
+                        {
+                            Point adjustedPoint = GlobUtils.AdjustBoundaries(candidatePoint);
+                            Graphics.DrawRectangle(new Rectangle(GlobUtils.GetIndex(adjustedPoint), 20, 20));
+                        }
+                        else
+                        {
+                            Graphics.DrawRectangle(new Rectangle(GlobUtils.GetIndex(candidatePoint), 20, 20));
+                        }
                     }
 
-                    Stopwatch swDraw = new Stopwatch();
-                    swDraw.Start();
-                    foreach (var rect in candidateRects)
-                    {
-                        Graphics.DrawRectangle(scaledDepthPixels, rect);
-                    }
-                    swDraw.Stop();
-                    Console.WriteLine("Draw: {0}", swDraw.ElapsedMilliseconds);
-
-                    //ThreePointRectangle rect = new ThreePointRectangle(new Point(5,5),new Point(250,5),new Point(5,205));
-
-                    //Graphics.DrawRectangle(scaledDepthPixels, rect);
-                    
-
-                    this.RenderDepthPixels(candidateRects);
+                    RenderDepthPixels();
                     depthFrameReader.IsPaused = false;
                 }
             }
@@ -287,54 +211,17 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         /// <summary>
         /// Renders color pixels into the writeableBitmap.
         /// </summary>
-        private void RenderDepthPixels(List<IndexRectangle> candidateRects)
+        private void RenderDepthPixels()
         {
-            Stopwatch swRender = new Stopwatch();
-            swRender.Start();
-            this.scaledDepthBitmap.WritePixels(
-                new Int32Rect(0, 0, this.scaledDepthBitmap.PixelWidth, this.scaledDepthBitmap.PixelHeight),
-                this.scaledDepthPixels,
-                this.scaledDepthBitmap.PixelWidth * scaledDepthBitmap.Format.BitsPerPixel / 8,
+            Graphics.DrawCanvas(intensityMap);
+            Graphics.ClearCanvas();
+
+            this.intensityBitmap.WritePixels(
+                new Int32Rect(0, 0, this.intensityBitmap.PixelWidth, this.intensityBitmap.PixelHeight),
+                this.intensityMap,
+                this.intensityBitmap.PixelWidth * intensityBitmap.Format.BitsPerPixel / 8,
                 0);
 
-
-
-
-            swRender.Stop();
-            Console.WriteLine("Render: {0}", swRender.ElapsedMilliseconds);
-
-
-            //this.depthBitmap.WritePixels(
-            //    new Int32Rect(0, 0, this.depthBitmap.PixelWidth, this.depthBitmap.PixelHeight),
-            //    this.depthPixels,
-            //    this.depthBitmap.PixelWidth*depthBitmap.Format.BitsPerPixel/8,
-            //    0);
-            
-            /*
-            WriteableBitmap processedBitmap = new WriteableBitmap(detector.ProcessImage(this.depthBitmap,writer));
-            byte[] processedPixels = new byte[this.depthFrameDescription.Width * this.depthFrameDescription.Height * processedBitmap.Format.BitsPerPixel / 8];
-            
-            processedBitmap.CopyPixels(processedPixels, processedBitmap.PixelWidth*processedBitmap.Format.BitsPerPixel/8, 0);
-
-            this.displayBmp.WritePixels(
-                new Int32Rect(0, 0, processedBitmap.PixelWidth, processedBitmap.PixelHeight),
-                processedPixels,
-                processedBitmap.PixelWidth*processedBitmap.Format.BitsPerPixel/8,
-                0);
-             */
         }
-
-        /// <summary>
-        /// Handles the event which the sensor becomes unavailable (E.g. paused, closed, unplugged).
-        /// </summary>
-        /// <param name="sender">object sending the event</param>
-        /// <param name="e">event arguments</param>
-        private void Sensor_IsAvailableChanged(object sender, IsAvailableChangedEventArgs e)
-        {
-            // on failure, set the status text
-            this.StatusText = this.kinectSensor.IsAvailable ? Properties.Resources.RunningStatusText
-                                                            : Properties.Resources.SensorNotAvailableStatusText;
-        }
-
     }
 }

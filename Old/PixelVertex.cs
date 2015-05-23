@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Kinect;
 
-namespace Microsoft.Samples.Kinect.DepthBasics
+namespace InteractionDetection
 {
     class PixelVertex
     {

@@ -14,7 +14,7 @@ using System.Drawing.Imaging;
 using Microsoft.Kinect;
 
 
-namespace Microsoft.Samples.Kinect.DepthBasics
+namespace InteractionDetection
 {
     public static class KinectUtils
     {
@@ -30,6 +30,25 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         private const float horizontalFieldOfView = 70.6f;
         private const float verticalFieldOfView = 60.0f;
 
+        public static void DepthMapFromCameraPoints(float[] depthMap, CameraSpacePoint[] cameraSpacePoint)
+        {
+            for (int i = 0; i < cameraSpacePoint.Length; i++)
+            {
+                depthMap[i] = cameraSpacePoint[i].Z;
+            }
+        }
+
+
+        public static void InvertDistanceMeasures(CameraSpacePoint[] pointCloud)
+        {
+            for (int i = 0; i < pointCloud.Length; i++)
+            {
+                if (pointCloud[i].Z != 0)
+                {
+                    pointCloud[i].Z = (GlobVar.maxDepth / 1000.00f) - pointCloud[i].Z;
+                }
+            }
+        }
 
         public static CameraSpacePoint[] ScaleFrame(CameraSpacePoint[] cameraSpacePoints)
         { 
@@ -145,7 +164,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         }
 
 
-        public static Bitmap writeableBitmapToBitmap(WriteableBitmap writeBitmap)
+        public static Bitmap WriteableBitmapToBitmap(WriteableBitmap writeBitmap)
         {
             Bitmap bmp;
             using (MemoryStream outStream = new MemoryStream())
@@ -159,7 +178,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
         }
 
-        public static Bitmap byteArrayToBitmap(byte[] pixelArray)
+        public static Bitmap ByteArrayToBitmap(byte[] pixelArray)
         {
 
             MemoryStream ms = new MemoryStream(pixelArray);
@@ -203,33 +222,36 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             return (Math.PI / 180) * angle;
         }
 
-        public static byte CalculateIntensityFromCameraSpacePoint(CameraSpacePoint cameraSpacePoint){
+        public static byte[] CalculateIntensityFromCameraSpacePoints(CameraSpacePoint[] cameraSpacePoint)
+        {
 
-            byte intensity = 0;
-            float depthM = cameraSpacePoint.Z;
-            if (depthM != 0)
+            var intensityMap = new byte[cameraSpacePoint.Length];
+
+            for (int i = 0; i < cameraSpacePoint.Length; i++)
             {
-                int depthMM = (int)(depthM * 1000);
-                //Console.WriteLine(depthMM);
-                int currentMax = depthMM - minDepth;
-                int currentDepthRange = maxDepth - minDepth;
+                float depthM = cameraSpacePoint[i].Z;
+                if (depthM != 0)
+                {
+                    int depthMM = (int)(depthM * 1000);
+                    int currentMax = depthMM - minDepth;
+                    int currentDepthRange = maxDepth - minDepth;
 
-                if (depthMM < maxDepth && depthMM > minDepth)
-                {
-                    intensity = (byte)(255 - (255 * currentMax / currentDepthRange));
-                }
-                else
-                {
-                    intensity = (byte)0;
-                }
+                    if (depthMM < maxDepth && depthMM > minDepth)
+                    {
+                        intensityMap[i] = (byte)(255 - (255 * currentMax / currentDepthRange));
+                    }
+                    else
+                    {
+                        intensityMap[i] = (byte)0;
+                    }
                    
+                }
+                else 
+                {
+                    intensityMap[i] = (byte)0;
+                }
             }
-            else 
-            {
-                intensity = (byte)0;
-            }
-            return intensity;
-        
+            return intensityMap;
         }
 
         public static byte CalculateIntensityFromDistance(int depth)

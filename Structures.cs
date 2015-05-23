@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Microsoft.Samples.Kinect.DepthBasics
+namespace InteractionDetection
 {
     public struct Edge : IComparable<Edge>
     {
@@ -23,19 +23,33 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
     public struct Rectangle
     {
-        public int xStart, yStart, width, height;
+        public Rectangle(int indexStart, int width, int height)
+        {
+            IndexStart = indexStart;
+            Width = width;
+            Height = height;
+        }
+        public int IndexStart, Width, Height;
     }
 
     public struct ThreePointRectangle
     {
+
         public ThreePointRectangle(Point a, Point b, Point c)
         {
             this.a = a;
             this.b = b;
             this.c = c;
+            this.CenterPoint = new Point(0,0);
         }
-
-        public Point a, b, c;
+        public ThreePointRectangle(Point a, Point b, Point c,Point CenterPoint)
+        {
+            this.a = a;
+            this.b = b;
+            this.c = c;
+            this.CenterPoint = CenterPoint;
+        }
+        public Point a, b, c,CenterPoint;
     }
     public struct Point
     {
@@ -55,6 +69,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             this.b = b;
             this.c = c;
         }
+
         public int a, b, c;
     }
 }

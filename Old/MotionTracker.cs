@@ -7,7 +7,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using AForge.Vision.Motion;
 
-namespace Microsoft.Samples.Kinect.DepthBasics
+namespace InteractionDetection
 {
     public class MotionTracker
     {
