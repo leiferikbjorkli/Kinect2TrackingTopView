@@ -6,14 +6,18 @@ using System.Threading.Tasks;
 
 namespace InteractionDetection
 {
-    public struct Edge : IComparable<Edge>
-    {
-        public float weight;
-        public int firstComponent, secondComponent;
 
-        public int CompareTo(Edge other)
+
+    public struct Edge 
+    {
+        public float Weight;
+        public int FirstNodeIndex, SecondComponent;
+
+        public Edge(float weight, int firstNodeIndex, int secondNodeIndex)
         {
-            return this.weight.CompareTo(other.weight);
+            Weight = weight;
+            FirstNodeIndex = firstNodeIndex;
+            SecondComponent = secondNodeIndex;
         }
     }
     public struct Component

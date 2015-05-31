@@ -10,7 +10,7 @@ namespace InteractionDetection
 {
     static class HaarDetector
     {
-        public static List<Point> CreateRegions(float[] depthMap)
+        public static Point[] CreateRegions(float[] depthMap)
         {
             // try with 3 sizes
 
@@ -18,20 +18,32 @@ namespace InteractionDetection
 
             var candidatesPopularity = new Dictionary<Point, int>();
             List<Point> candidates = new List<Point>();
+
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
             SlideWindow(50, 30, integralImage,candidates);
             SlideWindow(25, 15, integralImage, candidates);
-            
+            sw.Stop();
+            //Console.WriteLine("Slidewindow, {0}",sw.ElapsedMilliseconds);
 
-            GroupRectangles(candidates, candidatesPopularity);
-            List<Point> filteredCandidates = FilterPopularRectangles(candidatesPopularity);
+            sw.Start();
+            DisjointSet disjointSet = GroupPoints(candidates);
+            sw.Stop();
+            //Console.WriteLine("Disjoint, {0}",sw.ElapsedMilliseconds);
+
+            sw.Start();
+            Point[] filteredCandidates = FilterPoints(disjointSet,candidates);
+            sw.Stop();
+            //Console.WriteLine("FilterNew, {0}", sw.ElapsedMilliseconds);
 
             return filteredCandidates;
         }
 
-        private static void SlideWindow(int outerWindowWidth, int innerWindowWidth, float[] integralImage,List<Point> candidates )
+        private static void SlideWindow(int outerWindowWidth, int innerWindowWidth, float[] integralImage,
+            List<Point> candidates)
         {
             int marginInnerWindow = (outerWindowWidth - innerWindowWidth)/2;
-            int innerWindowArea = innerWindowWidth * innerWindowWidth;
+            int innerWindowArea = innerWindowWidth*innerWindowWidth;
 
 
             for (int i = 0; i < GlobVar.scaledFrameHeight - innerWindowWidth; i += 3)
@@ -45,7 +57,7 @@ namespace InteractionDetection
                     {
                         iOuter = 0;
                     }
-                    if(jOuter < 0)
+                    if (jOuter < 0)
                     {
                         jOuter = 0;
                     }
@@ -53,38 +65,40 @@ namespace InteractionDetection
                     {
                         iOuter = GlobVar.scaledFrameHeight - 1 - outerWindowWidth;
                     }
-                    if (jOuter+outerWindowWidth > GlobVar.scaledFrameWidth-1)
+                    if (jOuter + outerWindowWidth > GlobVar.scaledFrameWidth - 1)
                     {
                         jOuter = GlobVar.scaledFrameWidth - 1 - outerWindowWidth;
                     }
 
-                    int innerIndexA = GlobUtils.GetIndex(j,i);
-                    int innerIndexB = GlobUtils.GetIndex(j+innerWindowWidth,i);
-                    int innerIndexC = GlobUtils.GetIndex(j,i+innerWindowWidth);
-                    int innerIndexD = GlobUtils.GetIndex(j+innerWindowWidth,i+innerWindowWidth);
+                    int innerIndexA = GlobUtils.GetIndex(j, i);
+                    int innerIndexB = GlobUtils.GetIndex(j + innerWindowWidth, i);
+                    int innerIndexC = GlobUtils.GetIndex(j, i + innerWindowWidth);
+                    int innerIndexD = GlobUtils.GetIndex(j + innerWindowWidth, i + innerWindowWidth);
 
-                    int outerIndexA = GlobUtils.GetIndex(jOuter,iOuter);
-                    int outerIndexB = GlobUtils.GetIndex(jOuter+outerWindowWidth,iOuter);
+                    int outerIndexA = GlobUtils.GetIndex(jOuter, iOuter);
+                    int outerIndexB = GlobUtils.GetIndex(jOuter + outerWindowWidth, iOuter);
                     int outerIndexC = GlobUtils.GetIndex(jOuter, iOuter + outerWindowWidth);
-                    int outerIndexD = GlobUtils.GetIndex(jOuter+outerWindowWidth,iOuter+outerWindowWidth);
+                    int outerIndexD = GlobUtils.GetIndex(jOuter + outerWindowWidth, iOuter + outerWindowWidth);
 
-                    int outerWindowArea = GlobUtils.CalculatePixelAreaFromIndexes(outerIndexA,outerIndexB,outerIndexC);
+                    int outerWindowArea = GlobUtils.CalculatePixelAreaFromIndexes(outerIndexA, outerIndexB, outerIndexC);
 
-                    float sumInnerWindow = (integralImage[innerIndexA] + integralImage[innerIndexD] - integralImage[innerIndexB] - integralImage[innerIndexC]);
-                    float sumOuterWindow = (integralImage[outerIndexA] + integralImage[outerIndexD] - integralImage[outerIndexB] - integralImage[outerIndexC]);
-                    float averageInnerWindow = sumInnerWindow / innerWindowArea;
-                    float averageOuterWindow = (sumOuterWindow - sumInnerWindow) / (outerWindowArea - innerWindowArea);
+                    float sumInnerWindow = (integralImage[innerIndexA] + integralImage[innerIndexD] -
+                                            integralImage[innerIndexB] - integralImage[innerIndexC]);
+                    float sumOuterWindow = (integralImage[outerIndexA] + integralImage[outerIndexD] -
+                                            integralImage[outerIndexB] - integralImage[outerIndexC]);
+                    float averageInnerWindow = sumInnerWindow/innerWindowArea;
+                    float averageOuterWindow = (sumOuterWindow - sumInnerWindow)/(outerWindowArea - innerWindowArea);
                     //Console.WriteLine(averageInnerWindow - averageOuterWindow);
 
-                    if ((averageInnerWindow-averageOuterWindow) > Thresholds.SlidingWindow)
+                    if ((averageInnerWindow - averageOuterWindow) > Thresholds.SlidingWindow)
                     {
                         //Console.WriteLine(averageInnerWindow - averageOuterWindow);
-                        var candidate = GlobUtils.GetMidPointFromIndexes(innerIndexB,innerIndexC);
+                        var candidate = GlobUtils.GetMidPointFromIndexes(innerIndexB, innerIndexC);
                         candidates.Add(candidate);
-
-                        //Graphics.DrawRectangle(new IndexRectangle(innerIndexA,innerIndexB,innerIndexC));
+                        //Graphics.DrawRectangle(new
+                        //IndexRectangle(innerIndexA,innerIndexB,innerIndexC));
                     }
-                }   
+                }
             }
         }
 
@@ -192,6 +206,56 @@ namespace InteractionDetection
                 }
             }
             return candidatesPopularity.Keys.ToList();
+        }
+
+        private static float CircularHaarLikeFeature()
+        {
+
+            return 0f;
+
+
+        }
+
+
+        private static DisjointSet GroupPoints(List<Point> candidatePoints)
+        {
+
+            DisjointSet disjointSet = new DisjointSet(candidatePoints);
+            for (int i = 0; i < candidatePoints.Count; i++)
+            {
+                for (int j = 0; j < candidatePoints.Count; j++)
+                {
+                    if (i == j) { continue; };
+                    //Console.WriteLine(GlobUtils.GetDistanceInFrame(candidatePoints[i], candidatePoints[j]));
+                    if (GlobUtils.GetDistanceInFrame(candidatePoints[i], candidatePoints[j]) < Thresholds.SetMaxDistance)
+                    {
+                        disjointSet.Union(i,j);
+                    }
+                }
+            }
+            return disjointSet;
+        }
+
+        private static Point[] FilterPoints(DisjointSet disjointSet,List<Point> candidates)
+        {
+            List<int> filteredCandidatesIndex = new List<int>();
+
+            for (int i = 0; i < disjointSet.Count; i++)
+            {
+                int setRepresentative = disjointSet.Find(i);
+                if (!filteredCandidatesIndex.Contains(setRepresentative) && disjointSet.SetSize(setRepresentative)>50)
+                { 
+                    filteredCandidatesIndex.Add(setRepresentative);
+                }
+            }
+
+            Point[] filteredCandidates = new Point[filteredCandidatesIndex.Count];
+            for (int i = 0; i < filteredCandidates.Length; i++)
+            {
+                filteredCandidates[i] = new Point((int)disjointSet.AverageX[filteredCandidatesIndex[i]], (int)disjointSet.AverageY[filteredCandidatesIndex[i]]);
+            }
+
+            return filteredCandidates;
         }
     }
 }

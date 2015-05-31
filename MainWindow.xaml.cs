@@ -151,7 +151,6 @@ namespace InteractionDetection
                 if (depthFrame != null)
                 {
 
-                    var candidates = new List<Point>();
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
                     depthFrame.CopyFrameDataToArray(frameData);
@@ -165,42 +164,58 @@ namespace InteractionDetection
 
                     GlobVar.scaledCameraSpacePoints = KinectUtils.ScaleFrame(this.cameraSpacePoints);
                     this.pointCloud = KinectUtils.CreatePointCloud(GlobVar.scaledCameraSpacePoints);
+
                     stopwatch.Stop();
-                    //Console.WriteLine("pointCloud: {0}", stopwatch.ElapsedMilliseconds);
+                    Console.WriteLine("pointCloud: {0}", stopwatch.ElapsedMilliseconds);
                     stopwatch.Start();
-                    this.pointCloud = ImageUtils.MedianFilter3x3(this.pointCloud);
+
+                    var filteredPointCloud = ImageUtils.MedianFilter3X3(this.pointCloud);
+                    
                     stopwatch.Stop();
-                    //Console.WriteLine("filter: {0}", stopwatch.ElapsedMilliseconds);
+                    Console.WriteLine("filter: {0}", stopwatch.ElapsedMilliseconds);
                     stopwatch.Start();
 
 
-                    CameraSpacePoint[] invertedCloud = new CameraSpacePoint[pointCloud.Length];
-                    pointCloud.CopyTo(invertedCloud, 0);
-                    KinectUtils.InvertDistanceMeasures(invertedCloud);
-                    var depthMap = new float[GlobVar.scaledFrameLength];
-                    KinectUtils.DepthMapFromCameraPoints(depthMap,invertedCloud);
-                    candidates = HaarDetector.CreateRegions(depthMap);
+
+                    filteredPointCloud.CopyTo(GlobVar.InvertedCloud, 0);
+
+                    KinectUtils.InvertDistanceMeasures(GlobVar.InvertedCloud);
+
+
+                    KinectUtils.DepthMapFromCameraPoints(GlobVar.depthMap, GlobVar.InvertedCloud);
+
+
+                    Point[] candidates = HaarDetector.CreateRegions(GlobVar.depthMap);
+
+                    GlobVar.AdjacancyList = GeodesicUtils.CreateGeodesicGraph();
 
                     stopwatch.Stop();
                     Console.WriteLine("Haar: {0}", stopwatch.ElapsedMilliseconds);
 
-                    //ClassificationUtils.ConnectedComponentLabeling(depthMap,candidates);
+                    intensityMap = KinectUtils.CalculateIntensityFromCameraSpacePoints(filteredPointCloud);
 
+                    stopwatch.Start();
 
-                    intensityMap = KinectUtils.CalculateIntensityFromCameraSpacePoints(pointCloud);
+                    var heads = new List<Head>();
 
-                    foreach (var candidatePoint in candidates)
+                    for (int i = 0; i < candidates.Length; i++)
                     {
-                        if (GlobUtils.BoundaryCheck(candidatePoint))
-                        {
-                            Point adjustedPoint = GlobUtils.AdjustBoundaries(candidatePoint);
-                            Graphics.DrawRectangle(new Rectangle(GlobUtils.GetIndex(adjustedPoint), 20, 20));
-                        }
-                        else
-                        {
-                            Graphics.DrawRectangle(new Rectangle(GlobUtils.GetIndex(candidatePoint), 20, 20));
-                        }
+                        var newHead = new Head(200);
+                        Point highestPoint = ClassificationUtils.GetHighestPointInSurroundingArea(candidates[i]);
+
+                        ClassificationUtils.ConnectedComponentLabelingIterative(highestPoint, (byte)(200), 150, newHead);
+                        BodyUtils.CalculateCenterPointHeadPoints(newHead);
+
+                        heads.Add(newHead);
+                        GeodesicUtils.CalculateShortestPaths(newHead);
                     }
+                    GlobVar.Heads = heads;
+                    
+
+                    stopwatch.Stop();
+
+                    //Graphics.DrawBodies();
+                    Console.WriteLine("ConnectComp: {0}", stopwatch.ElapsedMilliseconds);
 
                     RenderDepthPixels();
                     depthFrameReader.IsPaused = false;
