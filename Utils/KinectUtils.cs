@@ -27,15 +27,13 @@ namespace InteractionDetection
             }
         }
 
-
         public static void InvertDistanceMeasures(CameraSpacePoint[] pointCloud)
         {
             for (int i = 0; i < pointCloud.Length; i++)
             {
-
                 if (pointCloud[i].Z != 0)
                 {
-                    pointCloud[i].Z = (GlobVar.maxDepth / 1000.00f) - pointCloud[i].Z;
+                    pointCloud[i].Z = (GlobVar.MaxDepth / 1000.00f) - pointCloud[i].Z;
                 }
             }
         }
@@ -57,18 +55,18 @@ namespace InteractionDetection
 
         public static CameraSpacePoint[] ScaleFrame(CameraSpacePoint[] cameraSpacePoints)
         { 
-            CameraSpacePoint[] newFrame = new CameraSpacePoint[GlobVar.scaledFrameLength];
+            CameraSpacePoint[] newFrame = new CameraSpacePoint[GlobVar.ScaledFrameLength];
             int k = 0;
-            for (int i = 0; i < GlobVar.frameHeight-1; i+=2)
+            for (int i = 0; i < GlobVar.FrameHeight-1; i+=2)
             {
-                for (int j = 0; j < GlobVar.frameWidth-1; j+=2)
+                for (int j = 0; j < GlobVar.FrameWidth-1; j+=2)
                 {
                     float sumX = 0;
                     float sumY = 0;
                     float sumZ = 0;
                     int validPixels = 0;
 
-                    CameraSpacePoint upLeft = cameraSpacePoints[(i * GlobVar.frameWidth) + j];
+                    CameraSpacePoint upLeft = cameraSpacePoints[(i * GlobVar.FrameWidth) + j];
                     float depthCurrent = upLeft.Z;
                     if (!float.IsInfinity(upLeft.X) && !float.IsInfinity(upLeft.Y))
                     {
@@ -77,7 +75,7 @@ namespace InteractionDetection
                         sumZ += depthCurrent;
                         validPixels++;
                     }
-                    CameraSpacePoint right = cameraSpacePoints[(i * GlobVar.frameWidth) + j + 1];
+                    CameraSpacePoint right = cameraSpacePoints[(i * GlobVar.FrameWidth) + j + 1];
                     float depthRight = right.Z;
                     if (!float.IsInfinity(right.X) && !float.IsInfinity(right.Y))
                     {
@@ -86,7 +84,7 @@ namespace InteractionDetection
                         sumZ += depthRight;
                         validPixels++;
                     }
-                    CameraSpacePoint down = cameraSpacePoints[(i * GlobVar.frameWidth + 1) + j];
+                    CameraSpacePoint down = cameraSpacePoints[(i * GlobVar.FrameWidth + 1) + j];
                     float depthDown = down.Z;
                     if (!float.IsInfinity(down.X) && !float.IsInfinity(down.Y))
                     {
@@ -95,7 +93,7 @@ namespace InteractionDetection
                         sumZ += depthDown;
                         validPixels++;
                     }
-                    CameraSpacePoint rightDown = cameraSpacePoints[(i * GlobVar.frameWidth + 1) + j + 1];
+                    CameraSpacePoint rightDown = cameraSpacePoints[(i * GlobVar.FrameWidth + 1) + j + 1];
                     float depthRightDown = rightDown.Z;
                     if (!float.IsInfinity(rightDown.X) && !float.IsInfinity(rightDown.Y))
                     {
@@ -104,17 +102,21 @@ namespace InteractionDetection
                         sumZ += depthRightDown;
                         validPixels++;
                     }
-                    if (validPixels == 0) { validPixels = 1; };
-
-                    newFrame[k].X = sumX / validPixels;
-                    newFrame[k].Y = sumY / validPixels;
-                    newFrame[k].Z = sumZ / validPixels;
+                    if (validPixels == 0)
+                    {
+                        newFrame[k] = rightDown;
+                    }
+                    else
+                    {
+                        newFrame[k].X = sumX / validPixels;
+                        newFrame[k].Y = sumY / validPixels;
+                        newFrame[k].Z = sumZ / validPixels;
+                    }
                     k++;
                 }
             }
             return newFrame;
         }
-
 
         public static CameraSpacePoint[] CreatePointCloud(CameraSpacePoint[] cameraSpacePoints)
         {
@@ -126,16 +128,20 @@ namespace InteractionDetection
 
             // Optimize by initializing simply types instead of accessing fields
             CameraSpacePoint[] pointCloud = new CameraSpacePoint[cameraSpacePoints.Length];
-            //double maxHorizontalWidth = Math.Tan((ToRadians(GlobVar.horizontalFieldOfView) / 2)) * GlobVar.maxDepth;
-            //double maxVerticalHeight = Math.Tan((ToRadians(GlobVar.verticalFieldOfView) / 2)) * GlobVar.maxDepth;
-            int frameWidth = GlobVar.scaledFrameWidth;
-            int frameHeight = GlobVar.scaledFrameHeight;
+            for (int i = 0; i < pointCloud.Length; i++)
+            {
+                pointCloud[i].Z = GlobVar.MaxDepthMeter;
+            }
+
+            int frameWidth = GlobVar.ScaledFrameWidth;
+            int frameHeight = GlobVar.ScaledFrameHeight;
 
             // Optimize by using for instead of for each
 
             foreach (var cameraSpacePoint in cameraSpacePoints)
             {
-                if (!float.IsInfinity(cameraSpacePoint.X) && !float.IsInfinity(cameraSpacePoint.Y) && (int)(cameraSpacePoint.Z * 1000) > GlobVar.minDepth && (int)(cameraSpacePoint.Z * 1000) < GlobVar.maxDepth)
+
+                if ((int)(cameraSpacePoint.Z * 1000) > GlobVar.MinDepth && (int)(cameraSpacePoint.Z * 1000) < GlobVar.MaxDepth)
                 {
                     int xPixelCoordinateOfPoint = (int)Math.Round(((cameraSpacePoint.X * 1000) / GlobVar.MaxHorizontalWidth) * (frameWidth / 2) + (frameWidth / 2));
                     int yPixelCoordinateOfPoint = (int)Math.Round(((cameraSpacePoint.Y * 1000) / GlobVar.MaxVerticalHeight) * (frameHeight / 2) + (frameHeight / 2));
@@ -158,9 +164,9 @@ namespace InteractionDetection
                         yPixelCoordinateOfPoint = 1;
                     }
 
-
+                    //Flip to fit kinect studio
                     int pointIndex = ((frameHeight - yPixelCoordinateOfPoint) * frameWidth) + xPixelCoordinateOfPoint;
-                    if (cameraSpacePoint.Z < pointCloud[pointIndex].Z || pointCloud[pointIndex].Z == 0)
+                    if (cameraSpacePoint.Z < pointCloud[pointIndex].Z || pointCloud[pointIndex].Z == GlobVar.MaxDepthMeter)
                     {
                         pointCloud[pointIndex] = cameraSpacePoint;
                     }
@@ -224,8 +230,6 @@ namespace InteractionDetection
             }
         }
 
-
-
         public static byte[] CalculateIntensityFromCameraSpacePoints(CameraSpacePoint[] cameraSpacePoint)
         {
 
@@ -237,10 +241,10 @@ namespace InteractionDetection
                 if (depthM != 0)
                 {
                     int depthMM = (int)Math.Round(depthM * 1000);
-                    int currentMax = depthMM - GlobVar.minDepth;
-                    int currentDepthRange = GlobVar.maxDepth - GlobVar.minDepth;
+                    int currentMax = depthMM - GlobVar.MinDepth;
+                    int currentDepthRange = GlobVar.MaxDepth - GlobVar.MinDepth;
 
-                    if (depthMM < GlobVar.maxDepth && depthMM > GlobVar.minDepth)
+                    if (depthMM < GlobVar.MaxDepth && depthMM > GlobVar.MinDepth)
                     {
                         intensityMap[i] = (byte)(255 - (255 * currentMax / currentDepthRange));
                     }
@@ -251,6 +255,38 @@ namespace InteractionDetection
                    
                 }
                 else 
+                {
+                    intensityMap[i] = (byte)0;
+                }
+            }
+            return intensityMap;
+        }
+
+        public static byte[] CalculateIntensityFromDepth(float[] depthMap)
+        {
+
+            var intensityMap = new byte[depthMap.Length];
+
+            for (int i = 0; i < depthMap.Length; i++)
+            {
+                float depthM = depthMap[i];
+                if (depthM != 0)
+                {
+                    int depthMM = (int)Math.Round(depthM * 1000);
+                    int currentMax = depthMM - GlobVar.MinDepth;
+                    int currentDepthRange = GlobVar.MaxDepth - GlobVar.MinDepth;
+
+                    if (depthMM < GlobVar.MaxDepth && depthMM > GlobVar.MinDepth)
+                    {
+                        intensityMap[i] = (byte)(255 - (255 * currentMax / currentDepthRange));
+                    }
+                    else
+                    {
+                        intensityMap[i] = (byte)0;
+                    }
+
+                }
+                else
                 {
                     intensityMap[i] = (byte)0;
                 }
@@ -278,58 +314,6 @@ namespace InteractionDetection
 
 
         }
-
-
-        /// <summary>
-        /// Converts a <see cref="System.Drawing.Bitmap"/> into a WPF <see cref="BitmapSource"/>.
-        /// </summary>
-        /// <remarks>Uses GDI to do the conversion. Hence the call to the marshalled DeleteObject.
-        /// </remarks>
-        /// <param name="source">The source bitmap.</param>
-        /// <returns>A BitmapSource</returns>
-        public static BitmapSource ToBitmapSource(this System.Drawing.Bitmap source)
-        {
-            BitmapSource bitSrc = null;
-
-            var hBitmap = source.GetHbitmap();
-
-            try
-            {
-                bitSrc = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
-                    hBitmap,
-                    IntPtr.Zero,
-                    Int32Rect.Empty,
-                    BitmapSizeOptions.FromEmptyOptions());
-
-               
-
-            }
-            catch (Win32Exception)
-            {
-                bitSrc = null;
-            }
-            finally
-            {
-                NativeMethods.DeleteObject(hBitmap);
-            }
-            return bitSrc;
-
-        }
-
-        
-
-        /// <summary>
-        /// FxCop requires all Marshalled functions to be in a class called NativeMethods.
-        /// </summary>
-        internal static class NativeMethods
-        {
-            [DllImport("gdi32.dll")]
-            [return: MarshalAs(UnmanagedType.Bool)]
-            internal static extern bool DeleteObject(IntPtr hObject);
-        }
-
-
-
 
     
     }

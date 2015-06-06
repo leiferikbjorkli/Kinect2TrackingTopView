@@ -25,19 +25,9 @@ namespace InteractionDetection
     {
         // Optimize by accessing backbuffer of writablebitmap directly
 
-        private WriteableBitmap intensityBitmap = new WriteableBitmap(GlobVar.scaledFrameWidth, GlobVar.scaledFrameHeight, 96.0, 96.0, PixelFormats.Gray8, null);
-        private byte[] intensityMap = new byte[GlobVar.scaledFrameLength];
-        private CameraSpacePoint[] pointCloud = new CameraSpacePoint[GlobVar.scaledFrameLength];
-
         private CoordinateMapper coordinateMapper = null;
 
         private CameraSpacePoint[] cameraSpacePoints = null;
-
-
-        /// <summary>
-        /// Map depth range to byte range
-        /// </summary>
-        private const int MapDepthToByte = 8000 / 256;
         
         /// <summary>
         /// Active Kinect sensor
@@ -53,17 +43,6 @@ namespace InteractionDetection
         /// Description of the data contained in the depth frame
         /// </summary>
         private FrameDescription depthFrameDescription = null;
-            
-        /// <summary>
-        /// Bitmap to display
-        /// </summary>
-        private WriteableBitmap depthBitmap = null;
-
-        /// <summary>
-        /// Intermediate storage for frame data converted to color
-        /// </summary>
-        private byte[] depthPixels = null;
-
 
         /// <summary>
         /// Initializes a new instance of the MainWindow class.
@@ -72,6 +51,7 @@ namespace InteractionDetection
 
         public MainWindow()
         {
+            
             // get the kinectSensor object
             this.kinectSensor = KinectSensor.GetDefault();
 
@@ -84,12 +64,6 @@ namespace InteractionDetection
             // get FrameDescription from DepthFrameSource
             this.depthFrameDescription = this.kinectSensor.DepthFrameSource.FrameDescription;
 
-            // create the bitmap to display
-            this.depthBitmap = new WriteableBitmap(this.depthFrameDescription.Width, this.depthFrameDescription.Height, 96.0, 96.0, PixelFormats.Gray8, null);
-
-            // allocate space to put the pixels being received and converted
-            this.depthPixels = new byte[this.depthFrameDescription.Width * this.depthFrameDescription.Height * this.depthBitmap.Format.BitsPerPixel / 8];
-
             this.coordinateMapper = this.kinectSensor.CoordinateMapper;
 
             this.cameraSpacePoints = new CameraSpacePoint[depthFrameDescription.Width * depthFrameDescription.Height];
@@ -97,23 +71,9 @@ namespace InteractionDetection
             // open the sensor
             this.kinectSensor.Open();
 
-            // use the window object as the view model in this simple example
-            this.DataContext = this;
-
             // initialize the components (controls) of the window
             this.InitializeComponent();
 
-        }
-
-        /// <summary>
-        /// Gets the bitmap to display
-        /// </summary>
-        public ImageSource ImageSource
-        {
-            get
-            {
-                return this.intensityBitmap;
-            }
         }
 
         /// <summary>
@@ -158,85 +118,73 @@ namespace InteractionDetection
                     this.coordinateMapper.MapDepthFrameToCameraSpace(frameData, this.cameraSpacePoints);
                     stopwatch.Stop();
                     //Console.WriteLine("Kinect: {0}", stopwatch.ElapsedMilliseconds);
+                    stopwatch.Restart();
 
-                    stopwatch.Start();
 
+                    GlobVar.ScaledCameraSpacePoints = KinectUtils.ScaleFrame(this.cameraSpacePoints);
 
-                    GlobVar.scaledCameraSpacePoints = KinectUtils.ScaleFrame(this.cameraSpacePoints);
-                    this.pointCloud = KinectUtils.CreatePointCloud(GlobVar.scaledCameraSpacePoints);
-
+                    GlobVar.PointCloud = KinectUtils.CreatePointCloud(GlobVar.ScaledCameraSpacePoints);
                     stopwatch.Stop();
-                    Console.WriteLine("pointCloud: {0}", stopwatch.ElapsedMilliseconds);
-                    stopwatch.Start();
+                    Console.WriteLine("PointCloud: {0}", stopwatch.ElapsedMilliseconds);
+                    stopwatch.Restart();
 
-                    var filteredPointCloud = ImageUtils.MedianFilter3X3(this.pointCloud);
-                    
+                    GlobVar.MedianFilteredPointCloud = ImageUtils.MedianFilter3X3PointCloud(GlobVar.PointCloud);
                     stopwatch.Stop();
-                    Console.WriteLine("filter: {0}", stopwatch.ElapsedMilliseconds);
-                    stopwatch.Start();
+                    Console.WriteLine("MedianFilter: {0}", stopwatch.ElapsedMilliseconds);
+                    stopwatch.Restart();
 
+                    GlobVar.AdjacancyList = GeodesicUtils.CreateGeodesicGraph(GlobVar.MedianFilteredPointCloud);
+                    stopwatch.Stop();
+                    Console.WriteLine("GeodesicGraph: {0}", stopwatch.ElapsedMilliseconds);
+                    stopwatch.Restart();
 
+                    //foreach (var v in GlobVar.AdjacancyList)
+                    //{
+                    //    GlobVar.Canvas[v.Key] = 255;
+                    //}
 
-                    filteredPointCloud.CopyTo(GlobVar.InvertedCloud, 0);
-
-                    KinectUtils.InvertDistanceMeasures(GlobVar.InvertedCloud);
-
-
-                    KinectUtils.DepthMapFromCameraPoints(GlobVar.depthMap, GlobVar.InvertedCloud);
-
-
-                    Point[] candidates = HaarDetector.CreateRegions(GlobVar.depthMap);
-
-                    GlobVar.AdjacancyList = GeodesicUtils.CreateGeodesicGraph();
-
+                    Point[] candidates = HaarDetector.CreateRegions(GlobVar.MedianFilteredPointCloud);
                     stopwatch.Stop();
                     Console.WriteLine("Haar: {0}", stopwatch.ElapsedMilliseconds);
+                    stopwatch.Restart();
 
-                    intensityMap = KinectUtils.CalculateIntensityFromCameraSpacePoints(filteredPointCloud);
 
-                    stopwatch.Start();
-
-                    var heads = new List<Head>();
-
+                    var bodies = new List<Body>();
                     for (int i = 0; i < candidates.Length; i++)
                     {
-                        var newHead = new Head(200);
-                        Point highestPoint = ClassificationUtils.GetHighestPointInSurroundingArea(candidates[i]);
 
-                        ClassificationUtils.ConnectedComponentLabelingIterative(highestPoint, (byte)(200), 150, newHead);
-                        BodyUtils.CalculateCenterPointHeadPoints(newHead);
+                        int highestPointIndex = ClassificationUtils.GetHighestPointInSurroundingArea(candidates[i]);
+                        stopwatch.Stop();
+                        Console.WriteLine("HighestPointInArea: {0}", stopwatch.ElapsedMilliseconds);
+                        stopwatch.Restart();
 
-                        heads.Add(newHead);
-                        GeodesicUtils.CalculateShortestPaths(newHead);
+                        var newHead = new Head();
+                        var success = ClassificationUtils.ConnectedComponentLabelingIterative(highestPointIndex, 150, newHead);
+                        stopwatch.Stop();
+                        Console.WriteLine("Connected comp: {0}", stopwatch.ElapsedMilliseconds);
+                        stopwatch.Restart();
+                        if (success == 1)
+                        {
+                            //foreach (var headPixel in newHead.HeadPixels) {
+                            //    GlobVar.Canvas[headPixel] = 180;
+                            //}
+
+                            //Graphics.DrawPoint(GlobUtils.GetPoint(newHead.CenterPoint));
+
+                            Body newBody = new Body(newHead);
+                            GeodesicUtils.CalculateShortestPaths(newHead, newBody);
+                            bodies.Add(newBody);
+                            stopwatch.Stop();
+                            Console.WriteLine("ShortestPath: {0}", stopwatch.ElapsedMilliseconds);
+                        }
                     }
-                    GlobVar.Heads = heads;
-                    
+                    GlobVar.Bodies = bodies;
 
-                    stopwatch.Stop();
-
-                    //Graphics.DrawBodies();
-                    Console.WriteLine("ConnectComp: {0}", stopwatch.ElapsedMilliseconds);
-
-                    RenderDepthPixels();
+                    Graphics.RenderDepthPixels(this);
                     depthFrameReader.IsPaused = false;
                 }
             }
         }
 
-        /// <summary>
-        /// Renders color pixels into the writeableBitmap.
-        /// </summary>
-        private void RenderDepthPixels()
-        {
-            Graphics.DrawCanvas(intensityMap);
-            Graphics.ClearCanvas();
-
-            this.intensityBitmap.WritePixels(
-                new Int32Rect(0, 0, this.intensityBitmap.PixelWidth, this.intensityBitmap.PixelHeight),
-                this.intensityMap,
-                this.intensityBitmap.PixelWidth * intensityBitmap.Format.BitsPerPixel / 8,
-                0);
-
-        }
     }
 }

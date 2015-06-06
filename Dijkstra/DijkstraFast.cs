@@ -47,7 +47,7 @@ namespace InteractionDetection
             /// <param name="minimumDistance"> 
             /// The minimum distance from the starting node to the given node. 
             /// </param> 
-            public Results(int[] minimumPath, Dictionary<int,float> minimumDistance)
+            public Results(Dictionary<int,int> minimumPath, Dictionary<int,float> minimumDistance)
             {
                 MinimumDistance = minimumDistance;
                 MinimumPath = minimumPath;
@@ -56,7 +56,7 @@ namespace InteractionDetection
             /// The minimum path array, where each array element index corresponds  
             /// to a node designation, and the array element value is a pointer to 
             /// the node that should be used to travel to this one. 
-            public readonly int[] MinimumPath;
+            public readonly Dictionary<int, int> MinimumPath;
 
             /// The minimum distance from the starting node to the given node. 
             public readonly Dictionary<int, float> MinimumDistance;
@@ -99,16 +99,15 @@ namespace InteractionDetection
             Dictionary<int, float> distances = GetStartingTraversalCost(start,adjacancyList);
 
             // Initialize best path to every node as from the starting node. 
-            int[] p = GetStartingBestPath(start);
+
+            Dictionary<int, int> path = GetStartingBestPath(start, adjacancyList);
+
             BasicHeap Q = new BasicHeap();
 
             foreach (var distance in distances)
             {
                 Q.Push(distance.Key,distance.Value);
             }
-
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
 
             while (Q.Count != 0)
             {
@@ -124,60 +123,20 @@ namespace InteractionDetection
                     {
                         // We have found a better way to get at relative 
                         distances[neigbourIndex] = distances[v] + cost; // record new distance 
-                        //p[neigbourIndex] = v;
+                        path[neigbourIndex] = v;
 
                         Q.Push(neigbourIndex, distances[neigbourIndex]);
                     }
                 }
             }
 
-            sw.Stop();
-            Console.WriteLine("Dijkstra: {0}",sw.ElapsedMilliseconds);
-
-            return new Results(p, distances);
+            return new Results(path, distances);
         }
 
-        // start: The node to use as a starting location. 
-        // A struct containing both the minimum distance and minimum path 
-        // to every node from the given <paramref name="start"/> node. 
-        //public virtual Results Perform2(int start)
-        //{
-        //    // Initialize the distance to every node from the starting node. 
-        //    float[] d = GetStartingTraversalCost(start);
+        // Uses the Dijkstra algorithhm to find the minimum path from one node
+        // to another.  Return a struct containing both the minimum distance and
+        // minimum path to every node from the given start node.
 
-        //    // Initialize best path to every node as from the starting node. 
-        //    int[] p = GetStartingBestPath(start);
-        //    BinaryPriorityQueue Q = new BinaryPriorityQueue();
-
-        //    for (int i = 0; i != TotalNodeCount; i++)
-        //        Q.Push(new QueueElement(i,d[i]));
-
-        //    while (Q.Count!=0)
-        //    {
-        //        int v = ((QueueElement)Q.Pop()).index;
-             
-        //        foreach (int w in Hint(v))
-        //        {
-        //            //if (w <0 || w > Q.Count-1) continue;
-
-        //            float cost = TraversalCost(v, w);
-        //            if (cost < float.MaxValue && d[v] + cost < d[w]) // don't let wrap-around negatives slip by 
-        //            {
-        //                // We have found a better way to get at relative 
-        //                d[w] = d[v] + cost; // record new distance 
-        //                p[w] = v;
-        //                Q.Push(new QueueElement(w, d[w]));
-        //            }
-        //        }
-        //    }
-
-        //    return new Results(p, d);
-        //}
-
-        // Uses the Dijkstra algorithhm to find the minimum path 
-        // from one node to another. 
-        // Return a struct containing both the minimum distance and minimum path 
-        // to every node from the given start node. 
         //public virtual int[] GetMinimumPath(int start, int finish) {
         //    if (start < finish)
         //    {
@@ -194,7 +153,7 @@ namespace InteractionDetection
         // from one given node to another. 
         // ShortestPath : P array of the completed algorithm:
         // The list of nodes that provide the one step at a time path from 
-        protected virtual int[] GetMinimumPath(int start, int finish, int[] shortestPath)
+        protected virtual int[] GetMinimumPath(int start, int finish, Dictionary<int,int> shortestPath)
         {
             Stack<int> path = new Stack<int>();
 
@@ -210,33 +169,18 @@ namespace InteractionDetection
         // Initializes the P array for the algorithm. 
         // A fresh P array will set every single node's source node to be  
         // the starting node, including the starting node itself. 
-        protected virtual int[] GetStartingBestPath(int startingNode)
+        protected virtual Dictionary<int, int> GetStartingBestPath(int startingNode, Dictionary<int, Dictionary<int, float>> adjacancyList)
         {
-            int[] p = new int[TotalNodeCount];
-            for (int i = 0; i < p.Length; i++)
-                p[i] = startingNode;
+            Dictionary<int,int> p = new Dictionary<int, int>();
+
+            foreach (var node in adjacancyList)
+            {
+                p.Add(node.Key,startingNode);
+            }
+
             return p;
         }
 
-        // Initializes the D array for the start of the algorithm.
-        // The traversal cost for every node will be set to impossible 
-        // (int.MaxValue) unless a connecting edge is found between the 
-        // starting node and the node in question.
-        //protected virtual float[] GetStartingTraversalCost(int start) {
-        //    float[] subset = new float[TotalNodeCount];
-        //    for (int i = 0; i != subset.Length; i++)
-        //        subset[i] = float.MaxValue; // all are unreachable 
-        //    subset[start] = 0; // zero cost from start to start 
-
-        //    Dictionary<int, float> neighbours = GlobVar.AdjacancyList[start];
-
-        //    foreach (var nearby in neighbours.Keys)
-        //    {
-        //        subset[nearby] = neighbours[nearby];
-        //    }
-
-        //    return subset;
-        //}
 
         protected virtual Dictionary<int, float> GetStartingTraversalCost(int start, Dictionary<int, Dictionary<int, float>> adjacancyList)
         {

@@ -6,15 +6,10 @@ using System.Threading.Tasks;
 
 namespace InteractionDetection
 {
-    static class Validators
+    class RightShoulder
     {
-        public static bool FitHemiEllipsoidModel(List<Point> headCandidatePoints)
-        {
+        public List<int> Points { get; set; }
 
 
-
-            return false;
-
-        }
     }
 }

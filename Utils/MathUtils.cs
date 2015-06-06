@@ -28,7 +28,7 @@ namespace InteractionDetection
             float sumOfXSq = 0;
             float sumOfYSq = 0;
             float ssX = 0;
-            float ssY = 0;
+            //float ssY = 0;
             float sumCodeviates = 0;
             float sCo = 0;
             int count = pointCloud.Length;

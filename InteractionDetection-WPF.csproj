@@ -56,7 +56,8 @@
     <StartupObject>InteractionDetection.App</StartupObject>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>Images\Kinect.ico</ApplicationIcon>
+    <ApplicationIcon>
+    </ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
     <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
@@ -86,7 +87,9 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="Person\Body.cs" />
+    <Compile Include="Body\LeftShoulder.cs" />
+    <Compile Include="Body\Body.cs" />
+    <Compile Include="Body\RightShoulder.cs" />
     <Compile Include="Utils\BodyUtils.cs" />
     <Compile Include="Utils\ClassificationUtils.cs" />
     <Compile Include="Dijkstra\BasicHeap.cs" />
@@ -96,13 +99,12 @@
     <Compile Include="Dijkstra\PriorityQueue.cs" />
     <Compile Include="DisjointSet.cs" />
     <Compile Include="Utils\GeodesicUtils.cs" />
-    <Compile Include="Person\Head.cs" />
-    <Compile Include="Person\LeftHand.cs" />
+    <Compile Include="Body\Head.cs" />
+    <Compile Include="Body\LeftHand.cs" />
     <Compile Include="Utils\MathUtils.cs" />
-    <Compile Include="Node.cs" />
-    <Compile Include="Person\RightHand.cs" />
+    <Compile Include="Body\RightHand.cs" />
     <Compile Include="GlobalVar\Thresholds.cs" />
-    <Compile Include="Validators.cs" />
+    <Compile Include="XAMLCanvas.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -111,7 +113,6 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Candidate.cs" />
     <Compile Include="Graphics.cs" />
     <Compile Include="Utils\GlobUtils.cs" />
     <Compile Include="GlobalVar\GlobVar.cs" />
@@ -151,13 +152,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Images\Kinect.ico" />
-    <Resource Include="Images\Logo.png" />
-    <Resource Include="Images\ScreenshotHover.png" />
-    <Resource Include="Images\ScreenshotNormal.png" />
-    <Resource Include="Images\Status.png" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.5">

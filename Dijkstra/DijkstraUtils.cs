@@ -4,11 +4,28 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace InteractionDetection.Dijkstra
+namespace InteractionDetection
 {
     static class DijkstraUtils
     {
+        // Finds an array of nodes that provide the shortest path from one given
+        // node to another.  ShortestPath : P array of the completed algorithm:
+        // The list of nodes that provide the one step at a time path from
+        static public int[] GetMinimumPath(int start, int finish, Dictionary<int, int> shortestPath)
+        {
+            Stack<int> path = new Stack<int>();
 
+            //bool b = shortestPath.ContainsValue(start);
+
+            do
+            {
+                path.Push(finish);
+                finish = shortestPath[finish]; // step back one step toward the start point 
+            }
+            while (finish != start);
+            return path.ToArray();
+        }
+        
         static public float GetInternodeTraversalCost(int nodeA, int nodeB)
         {
             Point pointA = GlobUtils.GetPoint(nodeA);

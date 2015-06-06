@@ -13,22 +13,10 @@ namespace InteractionDetection
         public int Label { get; private set; }
         public int CenterPoint;
 
-        public Head(int label)
+        public void AddHeadPixels(List<int> headPixels )
         {
-            HeadPixels = new List<int>();
-            Label = label;
+            HeadPixels = headPixels;
+            CenterPoint = BodyUtils.CalculateCenterPointHeadPoints(headPixels);
         }
-
-        public void AddPixel(int newPixel)
-        {
-            HeadPixels.Add(newPixel);
-        }
-
-        public bool ContainsPixel(int pixel)
-        {
-            return HeadPixels.Contains(pixel);
-        }
-
-
     }
 }

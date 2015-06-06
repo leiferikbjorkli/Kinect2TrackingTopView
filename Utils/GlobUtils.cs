@@ -17,12 +17,12 @@ namespace InteractionDetection
                 return -1;
             }
 
-            return y*GlobVar.scaledFrameWidth + x;
+            return y*GlobVar.ScaledFrameWidth + x;
         }
 
         public static int GetIndexNoBoundaryCheck(int x, int y)
         {
-            return y*GlobVar.scaledFrameWidth + x;
+            return y*GlobVar.ScaledFrameWidth + x;
         }
 
         public static int GetIndex(Point p)
@@ -34,18 +34,18 @@ namespace InteractionDetection
                 throw new System.ArgumentException("Coordinates are incorrect");
             }
 
-            return y*GlobVar.scaledFrameWidth + x;
+            return y*GlobVar.ScaledFrameWidth + x;
         }
 
         public static Point GetPoint(int index)
         {
-            if (index < 0 || index > GlobVar.scaledFrameLength - 1)
+            if (index < 0 || index > GlobVar.ScaledFrameLength - 1)
             {
                 throw new System.ArgumentException("Index out of bounds");
             }
             Point p;
-            p.x = index%GlobVar.scaledFrameWidth;
-            double yDouble = index/GlobVar.scaledFrameWidth;
+            p.x = index%GlobVar.ScaledFrameWidth;
+            double yDouble = index/GlobVar.ScaledFrameWidth;
             int y = (int) Math.Floor(yDouble);
             p.y = y;
             return p;
@@ -58,8 +58,8 @@ namespace InteractionDetection
 
         public static float GetEuclideanDistance(int indexA, int indexB)
         {
-            CameraSpacePoint a = GlobVar.InvertedCloud[indexA];
-            CameraSpacePoint b = GlobVar.InvertedCloud[indexB];
+            CameraSpacePoint a = GlobVar.PointCloud[indexA];
+            CameraSpacePoint b = GlobVar.PointCloud[indexB];
 
             float distance =
                 (float) Math.Sqrt((a.X - b.X)*(a.X - b.X) + (a.Y - b.Y)*(a.Y - b.Y) + (a.Z - b.Z)*(a.Z - b.Z));
@@ -73,8 +73,8 @@ namespace InteractionDetection
 
         public static float GetEuclideanDistance(Point a, Point b)
         {
-            CameraSpacePoint aCameraSpace = GlobVar.InvertedCloud[GetIndex(a)];
-            CameraSpacePoint bCameraSpace = GlobVar.InvertedCloud[GetIndex(b)];
+            CameraSpacePoint aCameraSpace = GlobVar.PointCloud[GetIndex(a)];
+            CameraSpacePoint bCameraSpace = GlobVar.PointCloud[GetIndex(b)];
 
             return (float)
                 Math.Sqrt((aCameraSpace.X - bCameraSpace.X)*(aCameraSpace.X - bCameraSpace.X) +
@@ -132,7 +132,7 @@ namespace InteractionDetection
 
         public static bool BoundaryCheck(int index)
         {
-            return index > 0 && index < GlobVar.scaledFrameLength;
+            return index > 0 && index < GlobVar.ScaledFrameLength;
         }
 
 
@@ -264,6 +264,31 @@ namespace InteractionDetection
         public static double ToRadians(double angle)
         {
             return (Math.PI / 180) * angle;
+        }
+
+
+        public static Point CalculateAveragePoint(List<int> indexes)
+        {
+            int sumX = 0;
+            int sumY = 0;
+            int count = indexes.Count;
+
+            for (int i = 0; i < count; i++)
+            {
+                Point p = GetPoint(indexes[i]);
+                sumX += p.x;
+                sumY += p.y;
+            }
+            return new Point(sumX/count,sumY/count);
+        }
+
+        public static int FromWorldToFrameCoordinates(CameraSpacePoint cp)
+        {
+            int xPixelCoordinateOfPoint = (int)Math.Round(((cp.X * 1000) / GlobVar.MaxHorizontalWidth) * (GlobVar.ScaledFrameWidth / 2) + (GlobVar.ScaledFrameWidth / 2));
+            int yPixelCoordinateOfPoint = (int)Math.Round(((-cp.Y * 1000) / GlobVar.MaxVerticalHeight) * (GlobVar.ScaledFrameHeight / 2) + (GlobVar.ScaledFrameHeight / 2));
+
+            return GetIndex(xPixelCoordinateOfPoint, yPixelCoordinateOfPoint);
+
         }
 
     }

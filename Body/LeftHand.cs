@@ -6,14 +6,10 @@ using System.Threading.Tasks;
 
 namespace InteractionDetection
 {
-    class Body
+    class LeftHand
     {
+        public List<int> Points { get; set; }
 
-        public Body()
-        {
-
-
-        }
 
     }
 }

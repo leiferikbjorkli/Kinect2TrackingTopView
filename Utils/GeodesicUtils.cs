@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Documents;
-using InteractionDetection.Dijkstra;
+using Microsoft.Kinect;
 
 namespace InteractionDetection
 {
@@ -15,132 +15,95 @@ namespace InteractionDetection
 
 
 
-        public static void CalculateShortestPaths(Head head)
+        public static void CalculateShortestPaths(Head head,Body body)
         {
-            // pass search area
+            // pass search are
             var dijkstra = new DijkstraFast(GlobVar.AdjacancyList.Count);
 
+            int headCenter = head.CenterPoint;
+
+            if(!GlobVar.AdjacancyList.ContainsKey(headCenter))
+            {
+                return;
+            }
+
             var results = dijkstra.Perform(head.CenterPoint, GlobVar.AdjacancyList);
+
+            //foreach (var pair in results.MinimumPath)
+            //{
+            //    GlobVar.Canvas[pair.Key] = 255;
+            //}
+
+            var handPoints = new List<int>();
+            var shoulderPoints = new List<int>();
+
 
             foreach (var result in results.MinimumDistance)
             {
                 if (result.Value > 0.0f && result.Value < 0.2f)
                 {
-                    GlobVar.canvas[result.Key] = 200;
+                    GlobVar.Canvas[result.Key] = 255;
 
                 }
-                else if (result.Value < 0.9f && result.Value > 0.2f)
+                else if (result.Value < 0.5f && result.Value > 0.2f)
                 {
-                    GlobVar.canvas[result.Key] = 100;
+                    GlobVar.Canvas[result.Key] = 200;
+                    shoulderPoints.Add(result.Key);
+
                 }
-                else if (result.Value < 1.1f)
+                else if (result.Value < 1.1f && result.Value > 0.9f)
                 {
-                    GlobVar.canvas[result.Key] = 255;
+                    GlobVar.Canvas[result.Key] = 255;
+                    handPoints.Add(result.Key);
                 }
+
+                // Assume person is looking towards the middle
+            }
+
+            if (handPoints.Count < 50 || shoulderPoints.Count <= 10)
+            {
+                if (GlobVar.Bodies.Count > 0)
+                {
+                    Body lastBody = BodyUtils.GetLastFrameBody(body);
+                    if (lastBody != null)
+                    {
+                        body.AddLeftShoulder(lastBody.LeftShoulder);
+                        body.AddRightShoulder(lastBody.RightShoulder);
+                    }
+
+                }
+            }
+            else
+            {
+                Point avgHandPoint = GlobUtils.CalculateAveragePoint(handPoints);
+
+                BodyUtils.GroupShoulderPoints(shoulderPoints, head.CenterPoint, avgHandPoint, body);
+
+                if (body.LeftShoulder != null && body.RightShoulder != null)
+                {
+                    BodyUtils.GroupHandPoints(head.CenterPoint, handPoints, results.MinimumPath, body);
+                }
+            }
+
+            if (body.LeftShoulder == null || body.RightShoulder == null)
+            {
+                
             }
         }
 
-        //public static Dictionary<int, float[]> CreateGeodesicGraph() {
-        //    Dictionary<int, float[]> adjacencyList = new Dictionary<int, float[]>();
-
-        //    for (int i = 1; i < GlobVar.scaledFrameHeight - 1; i += 1)
-        //    {
-        //        for (int j = 0; j < GlobVar.scaledFrameWidth - 1; j += 1)
-        //        {
-        //            int currentPointIndex = GlobUtils.GetIndex(j, i);
-        //            float[] edges = new float[4];
-        //            bool existEdges = false;
-
-        //            int rightUpPointIndex = GlobUtils.GetIndex(j + 1, i - 1);
-        //            float dist = GlobUtils.GetEuclideanDistance(currentPointIndex, rightUpPointIndex);
-        //            if (dist < Thresholds.GeodesicGraph && dist != 0)
-        //            {
-        //                edges[0] = dist;
-        //                existEdges = true;
-        //            }
-
-        //            int rightPixelIndex = GlobUtils.GetIndex(j + 1, i);
-        //            dist = GlobUtils.GetEuclideanDistance(currentPointIndex, rightPixelIndex);
-        //            if (dist < Thresholds.GeodesicGraph && dist != 0)
-        //            {
-        //                edges[1] = dist;
-        //                existEdges = true;
-        //            }
-
-        //            int rightDownPointIndex = GlobUtils.GetIndex(j + 1, i + 1);
-        //            dist = GlobUtils.GetEuclideanDistance(currentPointIndex, rightDownPointIndex);
-        //            if (dist < Thresholds.GeodesicGraph && dist != 0)
-        //            {
-        //                edges[2] = dist;
-        //                existEdges = true;
-        //            }
-
-        //            int downPixelIndex = GlobUtils.GetIndex(j, i + 1);
-        //            dist = GlobUtils.GetEuclideanDistance(currentPointIndex, downPixelIndex);
-        //            if (dist < Thresholds.GeodesicGraph && dist != 0)
-        //            {
-        //                edges[3] = dist;
-        //                existEdges = true;
-        //            }
-
-        //            if (existEdges)
-        //            {
-        //                adjacencyList.Add(currentPointIndex, edges);
-        //            }
-
-        //        }
-        //    }
-
-        //    return adjacencyList;
-
-
-        //}
-
-        //public static void CreateGeodesicGraph() {
-        //    List<Edge> edges = new List<Edge>();
-
-        //    Dictionary<int,Node> nodes = new Dictionary<int,Node>();
-
-        //    for (int i = 1; i < GlobVar.scaledFrameHeight-1; i+=1)
-        //    {
-        //        for (int j = 0; j < GlobVar.scaledFrameWidth-1; j+=1)
-        //        {
-        //            int currentPointIndex = GlobUtils.GetIndex(j, i);
-
-        //            int rightUpPointIndex = GlobUtils.GetIndex(j + 1, i - 1);
-        //            float dist = GlobUtils.GetEuclideanDistance(currentPointIndex, rightUpPointIndex);
-        //            if (dist < Thresholds.GeodesicGraph){edges.Add(new Edge(dist,currentPointIndex,rightUpPointIndex));}
-
-        //            int rightPixelIndex = GlobUtils.GetIndex(j + 1, i);
-        //            dist = GlobUtils.GetEuclideanDistance(currentPointIndex, rightPixelIndex);
-        //            if (dist < Thresholds.GeodesicGraph){edges.Add(new Edge(dist,currentPointIndex,rightPixelIndex));}
-
-        //            int rightDownPointIndex = GlobUtils.GetIndex(j + 1, i + 1);
-        //            dist = GlobUtils.GetEuclideanDistance(currentPointIndex, rightDownPointIndex);
-        //            if (dist < Thresholds.GeodesicGraph){edges.Add(new Edge(dist,currentPointIndex,rightDownPointIndex));}
-
-        //            int downPixelIndex = GlobUtils.GetIndex(j, i + 1);
-        //            dist = GlobUtils.GetEuclideanDistance(currentPointIndex, downPixelIndex);
-        //            if (dist < Thresholds.GeodesicGraph){edges.Add(new Edge(dist,currentPointIndex,downPixelIndex));}
-
-        //        }
-        //    }
-
-        //}
-
-        public static Dictionary<int, Dictionary<int, float>> CreateGeodesicGraph()
+        public static Dictionary<int, Dictionary<int, float>> CreateGeodesicGraph(CameraSpacePoint[] pointCloud)
         {
             Dictionary<int,Dictionary<int,float>> adjacancyList = new Dictionary<int, Dictionary<int, float>>();
 
-            for (int i = 0; i < GlobVar.scaledFrameLength; i++)
+            for (int i = 0; i < GlobVar.ScaledFrameLength; i++)
             {
-                if (GlobVar.depthMap[i] != 0)
+                if (pointCloud[i].Z != GlobVar.MaxDepthMeter)
                 {
                     List<int> neighbourList = GlobUtils.GetNeighbourIndexList(i);
                     Dictionary<int,float> neighbourNodes = new Dictionary<int, float>();
                     foreach (var neighbour in neighbourList)
                     {
-                        if (GlobVar.depthMap[neighbour] != 0)
+                        if (pointCloud[neighbour].Z != GlobVar.MaxDepthMeter)
                         {
                             float dist = GlobUtils.GetEuclideanDistance(neighbour, i);
                             if (dist<Thresholds.GeodesicGraph)
@@ -156,5 +119,7 @@ namespace InteractionDetection
 
             return adjacancyList;
         }
+
+
     }
 }

@@ -3,40 +3,41 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.Kinect;
 
 namespace InteractionDetection
 {
     static class GlobVar
     {
-        public const int maxDepth = 2150;
-        public const int minDepth = 1000;
-        public const float MaxDepthMeter = 2.15f;
+        public const int MaxDepth = 2115;
+        //public const int maxDepth = 2300;
+        public const int MinDepth = 1000;
+        public const float MaxDepthMeter = ((float)MaxDepth)/1000;
         public const float MinDepthMeter = 1.0f;
-        public const int frameWidth = 512;
-        public const int frameHeight = 424;
-        public const int frameLength = frameWidth * frameHeight;
-        public const int scaledFrameWidth = frameWidth / 2;
-        public const int scaledFrameHeight = frameHeight / 2;
-        public const int scaledFrameLength = scaledFrameHeight * scaledFrameWidth;
-        public const float horizontalFieldOfView = 70.6f;
-        public const float verticalFieldOfView = 60.0f;
-        public static double MaxHorizontalWidth = Math.Tan((GlobUtils.ToRadians(horizontalFieldOfView) / 2)) * maxDepth;
-        public static double MaxVerticalHeight = Math.Tan((GlobUtils.ToRadians(verticalFieldOfView) / 2)) * maxDepth;
+        public const int FrameWidth = 512;
+        public const int FrameHeight = 424;
+        public const int FrameLength = FrameWidth * FrameHeight;
+        public const int ScaledFrameWidth = FrameWidth / 2;
+        public const int ScaledFrameHeight = FrameHeight / 2;
+        public const int ScaledFrameLength = ScaledFrameHeight * ScaledFrameWidth;
+        public const float HorizontalFieldOfView = 70.6f;
+        public const float VerticalFieldOfView = 60.0f;
+        public static double MaxHorizontalWidth = Math.Tan((GlobUtils.ToRadians(HorizontalFieldOfView) / 2)) * MaxDepth;
+        public static double MaxVerticalHeight = Math.Tan((GlobUtils.ToRadians(VerticalFieldOfView) / 2)) * MaxDepth;
 
 
+        static public CameraSpacePoint[] ScaledCameraSpacePoints = new CameraSpacePoint[ScaledFrameLength];
+        static public byte[] Canvas = new byte[ScaledFrameLength];
 
-        public static CameraSpacePoint[] InvertedCloud = new CameraSpacePoint[scaledFrameLength];
-
-        static public CameraSpacePoint[] scaledCameraSpacePoints = new CameraSpacePoint[scaledFrameLength];
-        static public byte[] canvas = new byte[scaledFrameLength];
-        static public float[] depthMap = new float[scaledFrameLength];
         static public Dictionary<int, Dictionary<int, float>> AdjacancyList = new Dictionary<int, Dictionary<int, float>>();
-        static public List<Head> Heads = new List<Head>();
+        static public List<Body> Bodies = new List<Body>();
 
+        public static CameraSpacePoint[] MedianFilteredPointCloud = new CameraSpacePoint[ScaledFrameLength];
 
-        static public KinectSensor KinectSensor = KinectSensor.GetDefault();
-        static public CoordinateMapper CoordinateMapper = KinectSensor.CoordinateMapper;
+        public static WriteableBitmap IntensityBitmap = new WriteableBitmap(GlobVar.ScaledFrameWidth, GlobVar.ScaledFrameHeight, 96.0, 96.0, PixelFormats.Gray8, null);
 
+        public static CameraSpacePoint[] PointCloud = new CameraSpacePoint[GlobVar.ScaledFrameLength];
     }
 }
