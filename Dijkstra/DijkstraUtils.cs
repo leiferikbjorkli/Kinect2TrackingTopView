@@ -1,4 +1,9 @@
-﻿using System;
+﻿//
+// Written by Leif Erik Bjoerkli
+//
+
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;

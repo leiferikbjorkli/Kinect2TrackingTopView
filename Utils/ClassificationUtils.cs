@@ -1,8 +1,14 @@
-﻿using System;
+﻿//
+// Written by Leif Erik Bjoerkli
+//
+
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Kinect;
 
 namespace InteractionDetection
 {
@@ -11,7 +17,7 @@ namespace InteractionDetection
 
         public static int GetHighestPointInSurroundingArea(Point candidate)
         {
-            const int searchPixelRange = 20;
+            const int searchPixelRange = 10;
 
             int xStartIndex = candidate.x - searchPixelRange;
             int yStartIndex = candidate.y - searchPixelRange;
@@ -26,11 +32,14 @@ namespace InteractionDetection
                 for (int j = xStartIndex; j < xStopIndex; j++)
                 {
                     int pixelIndex = GlobUtils.GetIndex(j, i);
-                    float currentHeight = GlobVar.MedianFilteredPointCloud[pixelIndex].Z;
-                    if (currentHeight < maxHeight && pixelIndex != -1)
+                    if (pixelIndex != -1)
                     {
-                        maxHeight = currentHeight;
-                        maxPointIndex = pixelIndex;
+                        float currentHeight = GlobVar.MedianFilteredPointCloud[pixelIndex].Z;
+                        if (currentHeight < maxHeight)
+                        {
+                            maxHeight = currentHeight;
+                            maxPointIndex = pixelIndex;
+                        } 
                     }
                 }
             }
@@ -38,7 +47,7 @@ namespace InteractionDetection
             return maxPointIndex;
         }
 
-        public static int ConnectedComponentLabelingIterative(int startIndex,int maxDepth,Head head)
+        public static List<int> ConnectedComponentLabelingIterative(int startIndex,int maxDepth)
         {
             var Q = new Queue<int>();
 
@@ -56,6 +65,9 @@ namespace InteractionDetection
                 int currentIndex = Q.Dequeue();
 
                 float currentDepth = GlobVar.MedianFilteredPointCloud[currentIndex].Z;
+                CameraSpacePoint currentPoint = GlobVar.MedianFilteredPointCloud[currentIndex];
+
+
                 int[] neighbours = GlobUtils.GetNeighbourIndexListFast(currentIndex);
 
                 for (int i = 0; i < neighbours.Length; i++)
@@ -66,9 +78,10 @@ namespace InteractionDetection
                         continue;
                     }
                     float neighbourDepth = GlobVar.MedianFilteredPointCloud[neighbourIndex].Z;
+                    CameraSpacePoint neighbourPoint = GlobVar.MedianFilteredPointCloud[neighbourIndex];
 
                     if (!headPixels.Contains(neighbourIndex) &&
-                        Thresholds.Labeling > (Math.Abs(neighbourDepth - currentDepth)))
+                        Thresholds.ConnectedComponentLabelingMaxDistanceBetweenPoints > GlobUtils.GetEuclideanDistance(currentPoint,neighbourPoint))
                     {
                         Q.Enqueue(neighbourIndex);
                         headPixels.Add(neighbourIndex);
@@ -76,81 +89,9 @@ namespace InteractionDetection
                 }
                 maxDepth--;
             }
-
-            if (headPixels.Count > 10)
-            {
-                head.AddHeadPixels(headPixels);
-                return 1;
-            }
-            return -1;
+            return headPixels;
+            
         }
         
-        //private static float FindHighest(Point currentPoint,int searchDepth,ref Point highestPoint,float highestValue)
-        //{
-        //    int x = currentPoint.x;
-        //    int y = currentPoint.y;
-        //    float currentValue = GlobVar.depthMap[GlobUtils.GetIndex(x,y)];
-
-        //    if (currentValue>highestValue)
-        //    {
-        //        highestPoint = currentPoint;
-        //        highestValue = currentValue;
-        //        if (searchDepth <= 0)
-        //        {
-        //            return currentValue;
-        //        }
-        //        searchDepth--;
-        //        highestValue = FindHighest(new Point(x + 1, y), searchDepth, ref highestPoint, highestValue);
-        //        highestValue = FindHighest(new Point(x - 1, y), searchDepth, ref highestPoint, highestValue);
-        //        highestValue = FindHighest(new Point(x, y + 1), searchDepth, ref highestPoint, highestValue);
-        //        highestValue = FindHighest(new Point(x, y - 1), searchDepth, ref highestPoint, highestValue);
-        //        return highestValue;
-        //    }
-        //    return highestValue;
-        //}
-
-        //public static void ConnectedComponentLabeling(Point pixel, byte label,float previousDepth, int recursionLimit)
-        //{
-        //    if(pixel.x > GlobVar.scaledFrameWidth-1 || pixel.x < 0 || pixel.y > GlobVar.scaledFrameHeight-1 || pixel.y < 0)
-        //    {
-        //        return;
-        //    }
-
-        //    int pixelIndex = GlobUtils.GetIndex(pixel);
-        //    float pixelDepth = GlobVar.depthMap[pixelIndex];
-
-        //    int x = pixel.x;
-        //    int y = pixel.y;
-
-        //    if (GlobVar.Canvas[pixelIndex] == label || Thresholds.Labeling < (Math.Abs(pixelDepth - previousDepth)))
-        //        return;
-        //    GlobVar.Canvas[pixelIndex] = label;
-        //    recursionLimit--;
-        //    if (recursionLimit <= 1)
-        //    {
-        //        return;
-                
-        //    }
-
-        //    ConnectedComponentLabeling(new Point(x - 1, y), label, pixelDepth, recursionLimit);
-        //    ConnectedComponentLabeling(new Point(x - 1, y - 1), label, pixelDepth, recursionLimit);
-        //    ConnectedComponentLabeling(new Point(x, y - 1), label, pixelDepth, recursionLimit);
-        //    ConnectedComponentLabeling(new Point(x + 1, y - 1), label, pixelDepth, recursionLimit);
-        //    ConnectedComponentLabeling(new Point(x + 1, y), label, pixelDepth, recursionLimit);
-        //    ConnectedComponentLabeling(new Point(x + 1, y + 1), label, pixelDepth, recursionLimit);
-        //    ConnectedComponentLabeling(new Point(x, y + 1), label, pixelDepth, recursionLimit);
-        //    ConnectedComponentLabeling(new Point(x - 1, y + 1), label, pixelDepth, recursionLimit);
-        //}
-
-        //public static Point GetHighestLocalPoint(Point point)
-        //{
-        //    float highestLocalValue = 0;
-        //    Point highestLocalPoint = new Point();
-        //    FindHighest(point, 10, ref highestLocalPoint, highestLocalValue);
-
-        //    return highestLocalPoint;
-
-        //}
-
     }
 }

@@ -1,8 +1,14 @@
-﻿//------------------------------------------------------------------------------
-// <copyright file="AssemblyInfo.cs" company="Microsoft">
-//     Copyright (c) Microsoft Corporation.  All rights reserved.
-// </copyright>
-//------------------------------------------------------------------------------
+﻿//
+// Written by Leif Erik Bjoerkli
+//
+
+//
+// Written by Leif Erik Bjoerkli
+//
+
+//
+// Written by Leif Erik Bjoerkli
+//
 
 using System;
 using System.Reflection;

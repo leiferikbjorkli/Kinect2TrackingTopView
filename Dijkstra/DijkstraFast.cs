@@ -1,4 +1,7 @@
-//by Tolga Birdal
+//
+// Written by Leif Erik Bjoerkli
+//
+
 
 using System;
 using System.Collections;
@@ -119,13 +122,17 @@ namespace InteractionDetection
                 {
                     float cost = neighbours[neigbourIndex];
 
-                    if (cost < float.MaxValue && distances[v] + cost < distances[neigbourIndex]) // don't let wrap-around negatives slip by 
-                    {
-                        // We have found a better way to get at relative 
-                        distances[neigbourIndex] = distances[v] + cost; // record new distance 
-                        path[neigbourIndex] = v;
 
-                        Q.Push(neigbourIndex, distances[neigbourIndex]);
+                    if (distances.ContainsKey(neigbourIndex))
+                    {
+                        if (cost < float.MaxValue && distances[v] + cost < distances[neigbourIndex]) // don't let wrap-around negatives slip by 
+                        {
+                            // We have found a better way to get at relative 
+                            distances[neigbourIndex] = distances[v] + cost; // record new distance 
+                            path[neigbourIndex] = v;
+
+                            Q.Push(neigbourIndex, distances[neigbourIndex]);
+                        } 
                     }
                 }
             }

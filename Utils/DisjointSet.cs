@@ -1,4 +1,8 @@
-﻿using System;
+﻿//
+// Written by Leif Erik Bjoerkli
+//
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,6 +14,8 @@ namespace InteractionDetection {
     /// A Union-Find/Disjoint-Set data structure.
     /// </summary>
     public class DisjointSet {
+
+
         public float[] AverageX { get; private set; }
         public float[] AverageY { get; private set; }
 

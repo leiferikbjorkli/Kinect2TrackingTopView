@@ -1,25 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿//
+// Written by Leif Erik Bjoerkli
+//
+
 
 namespace InteractionDetection
 {
-    public struct Rectangle
-    {
-        public Rectangle(int indexStart, int width, int height)
-        {
-            IndexStart = indexStart;
-            Width = width;
-            Height = height;
-        }
-        public int IndexStart, Width, Height;
-    }
-
     public struct ThreePointRectangle
     {
-
         public ThreePointRectangle(Point a, Point b, Point c)
         {
             this.a = a;

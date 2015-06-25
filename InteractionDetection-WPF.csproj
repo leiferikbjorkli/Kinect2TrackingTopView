@@ -87,9 +87,12 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="Body\LeftShoulder.cs" />
-    <Compile Include="Body\Body.cs" />
-    <Compile Include="Body\RightShoulder.cs" />
+    <Compile Include="BodyParts\Hand.cs" />
+    <Compile Include="BodyParts\Body.cs" />
+    <Compile Include="Diagnostics.cs" />
+    <Compile Include="Utils\EnergyUtils.cs" />
+    <Compile Include="BodyParts\Torso.cs" />
+    <Compile Include="Utils\DisjointSet3D.cs" />
     <Compile Include="Utils\BodyUtils.cs" />
     <Compile Include="Utils\ClassificationUtils.cs" />
     <Compile Include="Dijkstra\BasicHeap.cs" />
@@ -97,14 +100,12 @@
     <Compile Include="Dijkstra\DijkstraUtils.cs" />
     <Compile Include="Dijkstra\HeapNode.cs" />
     <Compile Include="Dijkstra\PriorityQueue.cs" />
-    <Compile Include="DisjointSet.cs" />
+    <Compile Include="Utils\DisjointSet.cs" />
     <Compile Include="Utils\GeodesicUtils.cs" />
-    <Compile Include="Body\Head.cs" />
-    <Compile Include="Body\LeftHand.cs" />
-    <Compile Include="Utils\MathUtils.cs" />
-    <Compile Include="Body\RightHand.cs" />
+    <Compile Include="BodyParts\Head.cs" />
     <Compile Include="GlobalVar\Thresholds.cs" />
-    <Compile Include="XAMLCanvas.cs" />
+    <Compile Include="Utils\Validators.cs" />
+    <Compile Include="Graphics\XAMLCanvas.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -113,11 +114,11 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Graphics.cs" />
+    <Compile Include="Graphics\Graphics.cs" />
     <Compile Include="Utils\GlobUtils.cs" />
     <Compile Include="GlobalVar\GlobVar.cs" />
-    <Compile Include="HaarDetector.cs" />
-    <Compile Include="Structures.cs" />
+    <Compile Include="Utils\HaarDetector.cs" />
+    <Compile Include="Utils\Structures.cs" />
     <Compile Include="Utils\ImageUtils.cs" />
     <Compile Include="Utils\KinectUtils.cs" />
     <Compile Include="MainWindow.xaml.cs">
@@ -144,6 +145,7 @@
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
     </EmbeddedResource>
+    <None Include="InteractionDetection.licenseheader" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>

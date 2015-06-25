@@ -1,6 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
+//
+// Written by Leif Erik Bjoerkli
+//
 
 namespace InteractionDetection
 {

@@ -1,5 +1,11 @@
-﻿using System;
+﻿//
+// Written by Leif Erik Bjoerkli
+//
+
+
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -7,9 +13,8 @@ using Microsoft.Kinect;
 
 namespace InteractionDetection
 {
-    internal static class GlobUtils
+    static class GlobUtils
     {
-
         public static int GetIndex(int x, int y)
         {
             if (x < 0 || x > 255 || y < 0 || y > 211)
@@ -17,11 +22,6 @@ namespace InteractionDetection
                 return -1;
             }
 
-            return y*GlobVar.ScaledFrameWidth + x;
-        }
-
-        public static int GetIndexNoBoundaryCheck(int x, int y)
-        {
             return y*GlobVar.ScaledFrameWidth + x;
         }
 
@@ -53,7 +53,7 @@ namespace InteractionDetection
 
         public static int CalculatePixelAreaFromIndexes(int a, int b, int c)
         {
-            return (GetPoint(b).x + 1 - GetPoint(a).x)*(GetPoint(c).y + 1 - GetPoint(a).y);
+            return (GetPoint(b).x - GetPoint(a).x)*(GetPoint(c).y - GetPoint(a).y);
         }
 
         public static float GetEuclideanDistance(int indexA, int indexB)
@@ -82,6 +82,19 @@ namespace InteractionDetection
                           (aCameraSpace.Z - bCameraSpace.Z)*(aCameraSpace.Z - bCameraSpace.Z));
         }
 
+        public static float GetEuclideanDistance(CameraSpacePoint a, CameraSpacePoint b)
+        {
+
+            float distance =
+                (float)Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y) + (a.Z - b.Z) * (a.Z - b.Z));
+
+            if (float.IsNaN(distance))
+            {
+                return float.MaxValue;
+            }
+            return distance;
+        }
+
         public static int GetRectangleCenterPointIndex(IndexRectangle rect)
         {
             var a = GetPoint(rect.a);
@@ -89,14 +102,6 @@ namespace InteractionDetection
             var c = GetPoint(rect.c);
 
             return GetIndex(a.x + (b.x - a.x)/2, a.y + (c.y - a.y)/2);
-        }
-
-        public static int GetMidPointIndex(int aIndex, int bIndex)
-        {
-            var a = GetPoint(aIndex);
-            var b = GetPoint(bIndex);
-
-            return GetIndex((a.x + b.x)/2, (a.y + b.y)/2);
         }
 
         public static Point GetMidPointFromIndexes(int aIndex, int bIndex)
@@ -107,14 +112,16 @@ namespace InteractionDetection
             return new Point((a.x + b.x)/2, (a.y + b.y)/2);
         }
 
-        public static Point GetRectangleCenterPoint(ThreePointRectangle rect)
-        {
-            return new Point(rect.a.x + (rect.b.x - rect.a.x)/2, rect.a.y + (rect.c.y - rect.a.y)/2);
-        }
-
         public static float GetDistanceInFrame(Point a, Point b)
         {
             return (float) Math.Sqrt((a.x - b.x)*(a.x - b.x) + (a.y - b.y)*(a.y - b.y));
+        }
+
+        public static float GetDistanceInFrame(int indexA, int indexB)
+        {
+            Point a = GetPoint(indexA);
+            Point b = GetPoint(indexB);
+            return (float)Math.Sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
         }
 
         public static bool BoundaryCheck(Point p)
@@ -133,61 +140,6 @@ namespace InteractionDetection
         public static bool BoundaryCheck(int index)
         {
             return index > 0 && index < GlobVar.ScaledFrameLength;
-        }
-
-
-        public static int AdjustXBoundaries(int x)
-        {
-            if (x < 0)
-            {
-                x = 0;
-            }
-            else if (x > 255)
-            {
-                x = 255;
-            }
-            return x;
-        }
-
-        public static int AdjustYBoundaries(int y)
-        {
-            if (y < 0)
-            {
-                y = 0;
-            }
-            else if (y > 255)
-            {
-                y = 255;
-            }
-            return y;
-        }
-
-        public static Point AdjustBoundaries(Point p)
-        {
-            int x = p.x;
-            int y = p.y;
-
-            if (x < 0)
-            {
-                x = 0;
-            }
-            else if (x > 255)
-            {
-                x = 255;
-            }
-            else if (y < 0)
-            {
-                y = 0;
-            }
-            else if (y > 211)
-            {
-                y = 211;
-            }
-            else
-            {
-                return p;
-            }
-            return new Point(x, y);
         }
 
         public static bool IsNeighbour(int nodeA, int nodeB)
@@ -221,27 +173,6 @@ namespace InteractionDetection
             return neighbourIndexes;
         }
 
-        public static List<int> GetNeighbourIndexList5x5(int currentNode)
-        {
-            List<int> neighbourIndexes = new List<int>();
-
-            Point p = GetPoint(currentNode);
-            int x = p.x;
-            int y = p.y;
-
-            for (int i = -2; i < 3; i++)
-            {
-                for (int j = -2; j < 3; j++)
-                {
-                    if (!(i == 0 && j == 0) && BoundaryCheck(x + j, y + i))
-                    {
-                        neighbourIndexes.Add(GetIndex(x + j, y + i));
-                    }
-                }
-            }
-            return neighbourIndexes;
-        }
-
         public static int[] GetNeighbourIndexListFast(int currentNode)
         {
             int[] neighbourIndexes = new int[8];
@@ -261,11 +192,11 @@ namespace InteractionDetection
  
             return neighbourIndexes;
         }
+        
         public static double ToRadians(double angle)
         {
             return (Math.PI / 180) * angle;
         }
-
 
         public static Point CalculateAveragePoint(List<int> indexes)
         {
@@ -291,5 +222,51 @@ namespace InteractionDetection
 
         }
 
+        public static CameraSpacePoint CalculateMeanPoint(List<int> points)
+        {
+
+            float sumX = 0;
+            float sumY = 0;
+            float sumZ = 0;
+
+            int count = points.Count;
+
+            foreach (var index in points)
+            {
+                CameraSpacePoint p = GlobVar.MedianFilteredPointCloud[index];
+                sumX += p.X;
+                sumY += p.Y;
+                sumZ += p.Z;
+            }
+
+            return new CameraSpacePoint()
+            {
+                X = sumX/count,
+                Y = sumY/count,
+                Z = sumZ/count
+            };
+        }
+
+        public static float DistanceClosestCandidate(int indexPoint)
+        {
+            float minDistance = float.MaxValue;
+
+            foreach (var head in GlobVar.ValidatedCandidateHeads)
+            {
+                var headIndex = head.CenterPointIndex;
+                float currentDistance = GetEuclideanDistance(headIndex, indexPoint);
+                if (currentDistance < minDistance)
+                {
+                    minDistance = currentDistance;
+                }
+            }
+            return minDistance;
+        }
+
+        public static double CalculateFPS(TimeSpan currentTime, TimeSpan lastTime)
+        {
+            double deltaTime = currentTime.Subtract(lastTime).TotalMilliseconds;
+            return 1000/deltaTime;
+        }
     }
 }

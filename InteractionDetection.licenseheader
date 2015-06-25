@@ -1,0 +1,7 @@
+extensions: .cs 
+//
+// Written by Leif Erik Bjoerkli
+//
+
+extensions: .aspx .ascx
+<%-- Written by Leif Erik Bjoerkli --%>

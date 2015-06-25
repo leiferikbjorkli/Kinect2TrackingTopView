@@ -1,8 +1,7 @@
-﻿//------------------------------------------------------------------------------
-// <copyright file="MainWindow.xaml.cs" company="Microsoft">
-//     Copyright (c) Microsoft Corporation.  All rights reserved.
-// </copyright>
-//------------------------------------------------------------------------------
+﻿//
+// Written by Leif Erik Bjoerkli
+//
+
 
 namespace InteractionDetection
 {
@@ -10,23 +9,22 @@ namespace InteractionDetection
     using System.Collections.Generic;
     using System.ComponentModel;
     using System.Diagnostics;
-    using System.Globalization;
-    using System.IO;
     using System.Windows;
-    using System.Windows.Media;
-    using System.Windows.Media.Imaging;
     using Microsoft.Kinect;
-
 
     /// <summary>
     /// Interaction logic for MainWindow
     /// </summary>
     public partial class MainWindow : Window
     {
-        // Optimize by accessing backbuffer of writablebitmap directly
+        /// <summary>
+        /// Timestamp of previous frame
+        /// </summary>
+        private TimeSpan lastTime;
 
-        private CoordinateMapper coordinateMapper = null;
-
+        /// <summary>
+        /// Points in camera space mapped from depthframe
+        /// </summary>
         private CameraSpacePoint[] cameraSpacePoints = null;
         
         /// <summary>
@@ -45,10 +43,14 @@ namespace InteractionDetection
         private FrameDescription depthFrameDescription = null;
 
         /// <summary>
+        /// Perform diagnostics on solution
+        /// </summary>
+        private Diagnostics diagnostics;
+
+        /// <summary>
         /// Initializes a new instance of the MainWindow class.
         /// </summary>
         /// 
-
         public MainWindow()
         {
             
@@ -64,16 +66,25 @@ namespace InteractionDetection
             // get FrameDescription from DepthFrameSource
             this.depthFrameDescription = this.kinectSensor.DepthFrameSource.FrameDescription;
 
-            this.coordinateMapper = this.kinectSensor.CoordinateMapper;
-
+            // initialize array to store points in camera space of arriving
+            // frame
             this.cameraSpacePoints = new CameraSpacePoint[depthFrameDescription.Width * depthFrameDescription.Height];
+
+            // initialize diagnostics object
+            diagnostics = new Diagnostics();
+
+            // initialize global coordinate mapper from kinect sensor
+            GlobVar.CoordinateMapper = this.kinectSensor.CoordinateMapper;
+
+            // initialize global variable that stores the max amount of detected
+            // bodies in session for labeling
+            GlobVar.MaxBodyCount = 0;
 
             // open the sensor
             this.kinectSensor.Open();
 
             // initialize the components (controls) of the window
             this.InitializeComponent();
-
         }
 
         /// <summary>
@@ -83,6 +94,9 @@ namespace InteractionDetection
         /// <param name="e">event arguments</param>
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
+            // Calculate tracking success of session
+            diagnostics.CalculateTrackingSuccess();
+
             if (this.depthFrameReader != null)
             {
                 // DepthFrameReader is IDisposable
@@ -110,81 +124,164 @@ namespace InteractionDetection
             {
                 if (depthFrame != null)
                 {
-
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
+
                     depthFrame.CopyFrameDataToArray(frameData);
                     depthFrameReader.IsPaused = true;
-                    this.coordinateMapper.MapDepthFrameToCameraSpace(frameData, this.cameraSpacePoints);
-                    stopwatch.Stop();
-                    //Console.WriteLine("Kinect: {0}", stopwatch.ElapsedMilliseconds);
-                    stopwatch.Restart();
+                    GlobVar.CoordinateMapper.MapDepthFrameToCameraSpace(frameData, this.cameraSpacePoints);
 
+                    PreprocessFrame();
 
-                    GlobVar.ScaledCameraSpacePoints = KinectUtils.ScaleFrame(this.cameraSpacePoints);
+                    AnalyzeFrame(depthFrame.RelativeTime);
 
-                    GlobVar.PointCloud = KinectUtils.CreatePointCloud(GlobVar.ScaledCameraSpacePoints);
-                    stopwatch.Stop();
-                    Console.WriteLine("PointCloud: {0}", stopwatch.ElapsedMilliseconds);
-                    stopwatch.Restart();
-
-                    GlobVar.MedianFilteredPointCloud = ImageUtils.MedianFilter3X3PointCloud(GlobVar.PointCloud);
-                    stopwatch.Stop();
-                    Console.WriteLine("MedianFilter: {0}", stopwatch.ElapsedMilliseconds);
-                    stopwatch.Restart();
-
-                    GlobVar.AdjacancyList = GeodesicUtils.CreateGeodesicGraph(GlobVar.MedianFilteredPointCloud);
-                    stopwatch.Stop();
-                    Console.WriteLine("GeodesicGraph: {0}", stopwatch.ElapsedMilliseconds);
-                    stopwatch.Restart();
-
-                    //foreach (var v in GlobVar.AdjacancyList)
-                    //{
-                    //    GlobVar.Canvas[v.Key] = 255;
-                    //}
-
-                    Point[] candidates = HaarDetector.CreateRegions(GlobVar.MedianFilteredPointCloud);
-                    stopwatch.Stop();
-                    Console.WriteLine("Haar: {0}", stopwatch.ElapsedMilliseconds);
-                    stopwatch.Restart();
-
-
-                    var bodies = new List<Body>();
-                    for (int i = 0; i < candidates.Length; i++)
-                    {
-
-                        int highestPointIndex = ClassificationUtils.GetHighestPointInSurroundingArea(candidates[i]);
-                        stopwatch.Stop();
-                        Console.WriteLine("HighestPointInArea: {0}", stopwatch.ElapsedMilliseconds);
-                        stopwatch.Restart();
-
-                        var newHead = new Head();
-                        var success = ClassificationUtils.ConnectedComponentLabelingIterative(highestPointIndex, 150, newHead);
-                        stopwatch.Stop();
-                        Console.WriteLine("Connected comp: {0}", stopwatch.ElapsedMilliseconds);
-                        stopwatch.Restart();
-                        if (success == 1)
-                        {
-                            //foreach (var headPixel in newHead.HeadPixels) {
-                            //    GlobVar.Canvas[headPixel] = 180;
-                            //}
-
-                            //Graphics.DrawPoint(GlobUtils.GetPoint(newHead.CenterPoint));
-
-                            Body newBody = new Body(newHead);
-                            GeodesicUtils.CalculateShortestPaths(newHead, newBody);
-                            bodies.Add(newBody);
-                            stopwatch.Stop();
-                            Console.WriteLine("ShortestPath: {0}", stopwatch.ElapsedMilliseconds);
-                        }
-                    }
-                    GlobVar.Bodies = bodies;
-
-                    Graphics.RenderDepthPixels(this);
-                    depthFrameReader.IsPaused = false;
                 }
-            }
+           }
         }
 
+        private void PreprocessFrame()
+        {
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            GlobVar.ScaledCameraSpacePoints = KinectUtils.ScaleFrame(this.cameraSpacePoints);
+
+            GlobVar.PointCloud = KinectUtils.CreatePointCloudPerspective(GlobVar.ScaledCameraSpacePoints);
+            if (Diagnostics.LogTime)
+            {
+                stopwatch.Stop();
+                Console.WriteLine("PointCloud: {0}", stopwatch.ElapsedMilliseconds);
+                stopwatch.Restart();
+            }
+
+            GlobVar.MedianFilteredPointCloud =
+            ImageUtils.MedianFilter3X3PointCloud(GlobVar.PointCloud);
+            if (Diagnostics.LogTime)
+            {
+                stopwatch.Stop();
+                Console.WriteLine("MedianFilter: {0}", stopwatch.ElapsedMilliseconds);
+                stopwatch.Restart();
+            }
+
+        }
+
+        private void AnalyzeFrame(TimeSpan frameRelativeTime)
+        {
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            Point[] candidatesHaar = HaarDetector.CreateRegions(GlobVar.MedianFilteredPointCloud);
+            if (Diagnostics.LogTimeHaar)
+            {
+                stopwatch.Stop();
+                Console.WriteLine("Haar: {0}", stopwatch.ElapsedMilliseconds);
+                stopwatch.Restart();
+            }
+
+            List<Head> validatedCandidateHeads = new List<Head>();
+            for (int i = 0; i < candidatesHaar.Length; i++)
+            {
+                int highestPointIndex = ClassificationUtils.GetHighestPointInSurroundingArea(candidatesHaar[i]);
+
+                List<int> headPointIndexes = ClassificationUtils.ConnectedComponentLabelingIterative(highestPointIndex, 150);
+
+                if (Validators.IsSphericalShape(headPointIndexes, highestPointIndex) && Validators.SizeOfHead(headPointIndexes))
+                {
+                    var head = new Head(GlobVar.MedianFilteredPointCloud[highestPointIndex]);
+                    var success = head.AddHeadPixels(headPointIndexes);
+                    if (success == 1)
+                    {
+                        validatedCandidateHeads.Add(head);
+                    }
+                }
+            }
+            GlobVar.ValidatedCandidateHeads = validatedCandidateHeads;
+
+            GlobVar.AdjacancyList = GeodesicUtils.CreateGeodesicGraph(GlobVar.MedianFilteredPointCloud);
+            if (Diagnostics.LogTime)
+            {
+                stopwatch.Stop();
+                Console.WriteLine("CreateGeodesicGraph: {0}", stopwatch.ElapsedMilliseconds);
+                stopwatch.Restart();
+            }
+
+            if (Diagnostics.ShowGeodesicGraph)
+            {
+                foreach (var v in GlobVar.AdjacancyList)
+                {
+                    GlobVar.Canvas[v.Key] = 255;
+                }
+            }
+
+            var bodies = new List<Body>();
+            foreach (var candidateHead in validatedCandidateHeads)
+            {
+                Stopwatch stopwatchBody = new Stopwatch();
+                stopwatchBody.Start();
+
+                if (Diagnostics.ShowHeadPixels)
+                {
+                    foreach (var headPixel in candidateHead.HeadPointIndexes)
+                    {
+                        GlobVar.Canvas[headPixel] = 255;
+                    }
+                }
+
+                int bodyId = BodyUtils.GetBodyIdFromHead(candidateHead);
+
+                Body body;
+
+                if (bodyId == -1)
+                {
+                    body = new Body(GlobVar.MaxBodyCount, frameRelativeTime);
+                    body.AddHead(candidateHead);
+                    bodies.Add(body);
+                    GlobVar.MaxBodyCount++;
+
+                    GeodesicUtils.AddBodyLandmarks(candidateHead, body);
+                    if (Diagnostics.LogTime)
+                    {
+                        stopwatch.Stop();
+                        Console.WriteLine("ShortestPath: {0}", stopwatch.ElapsedMilliseconds);
+                        stopwatch.Restart();
+                    }
+                }
+                else
+                {
+                    body = new Body(bodyId, frameRelativeTime);
+                    body.AddHead(candidateHead);
+                    bodies.Add(body);
+
+                    GeodesicUtils.AddBodyLandmarks(candidateHead, body);
+                    if (Diagnostics.LogTime)
+                    {
+                        stopwatch.Stop();
+                        Console.WriteLine("ShortestPath: {0}", stopwatch.ElapsedMilliseconds);
+                        stopwatch.Restart();
+                    }
+                }
+                EnergyUtils.UpdateEnergy(body);
+                if (Diagnostics.LogTime)
+                {
+                    stopwatchBody.Stop();
+                    Console.WriteLine("ProcessOneBody: {0}", stopwatchBody.ElapsedMilliseconds);
+                }
+            }
+
+            BodyUtils.UpdateBodyHistory(bodies);
+            diagnostics.AddNewBodyFrameDiagnostics(bodies, frameRelativeTime);
+
+            Graphics.RenderDepthPixels(this);
+
+            depthFrameReader.IsPaused = false;
+
+            if (Diagnostics.PrintFPS)
+            {
+                var currentTime = frameRelativeTime;
+                Console.WriteLine("FPS: {0}", GlobUtils.CalculateFPS(currentTime, lastTime));
+                lastTime = currentTime;
+            }
+
+        }
     }
 }

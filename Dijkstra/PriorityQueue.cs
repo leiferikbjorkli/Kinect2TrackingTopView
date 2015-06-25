@@ -1,3 +1,8 @@
+//
+// Written by Leif Erik Bjoerkli
+//
+
+
 using System;
 using System.Collections;
 
