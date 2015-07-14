@@ -99,6 +99,8 @@ namespace InteractionDetection
  
             // use same as median filter
 
+
+
             Dictionary<int, float> distances = GetStartingTraversalCost(start,adjacancyList);
 
             // Initialize best path to every node as from the starting node. 

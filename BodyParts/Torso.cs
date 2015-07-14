@@ -14,12 +14,13 @@ namespace InteractionDetection
 {
     class Torso
     {
-        public List<CameraSpacePoint> Points { get; set; }
         public CameraSpacePoint CenterPoint { get; set; }
+        public CameraSpacePoint AvgCenterPoint { get; set; }
 
-        public Torso(CameraSpacePoint centerPoint)
+        public Torso(CameraSpacePoint centerPoint, CameraSpacePoint avgCenterPoint)
         {
             CenterPoint = centerPoint;
+            AvgCenterPoint = avgCenterPoint;
         }
     }
 }

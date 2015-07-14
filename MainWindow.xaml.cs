@@ -47,6 +47,18 @@ namespace InteractionDetection
         /// </summary>
         private Diagnostics diagnostics;
 
+        private HeatMap heatMap;
+
+        private EnergyUtils energyUtils;
+
+        private StatisticsWindow statWindow;
+
+        private Stopwatch stopwatch;
+
+        private TemporalMedianImage temporalMedianImage;
+
+        private int temporalFrameCounter;
+
         /// <summary>
         /// Initializes a new instance of the MainWindow class.
         /// </summary>
@@ -73,6 +85,12 @@ namespace InteractionDetection
             // initialize diagnostics object
             diagnostics = new Diagnostics();
 
+            // initialize heatmap analysis
+            heatMap = new HeatMap();
+
+            // initialize energy analysis
+            energyUtils = new EnergyUtils();
+
             // initialize global coordinate mapper from kinect sensor
             GlobVar.CoordinateMapper = this.kinectSensor.CoordinateMapper;
 
@@ -85,6 +103,16 @@ namespace InteractionDetection
 
             // initialize the components (controls) of the window
             this.InitializeComponent();
+
+            BodyUtils.InitializeBodyHistory();
+
+            statWindow = new StatisticsWindow();
+
+            stopwatch = new Stopwatch();
+
+            temporalFrameCounter = 30;
+            temporalMedianImage = new TemporalMedianImage(temporalFrameCounter);
+
         }
 
         /// <summary>
@@ -94,9 +122,6 @@ namespace InteractionDetection
         /// <param name="e">event arguments</param>
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
-            // Calculate tracking success of session
-            diagnostics.CalculateTrackingSuccess();
-
             if (this.depthFrameReader != null)
             {
                 // DepthFrameReader is IDisposable
@@ -109,6 +134,8 @@ namespace InteractionDetection
                 this.kinectSensor.Close();
                 this.kinectSensor = null;
             }
+
+            PostProcessing();
         }
 
         /// <summary>
@@ -124,86 +151,189 @@ namespace InteractionDetection
             {
                 if (depthFrame != null)
                 {
-                    Stopwatch stopwatch = new Stopwatch();
-                    stopwatch.Start();
-
-                    depthFrame.CopyFrameDataToArray(frameData);
                     depthFrameReader.IsPaused = true;
+                    depthFrame.CopyFrameDataToArray(frameData);
                     GlobVar.CoordinateMapper.MapDepthFrameToCameraSpace(frameData, this.cameraSpacePoints);
 
-                    PreprocessFrame();
+                    var preProcessedFrame = PreProcessFrame(cameraSpacePoints);
 
-                    AnalyzeFrame(depthFrame.RelativeTime);
+                    if (temporalMedianImage.ImageSet)
+                    {
+                        var subtractedFrame = temporalMedianImage.Subtract(preProcessedFrame);
 
+                        stopwatch.Restart();
+
+                        var filteredFrame = ImageUtils.MedianFilter3X3(subtractedFrame,2);
+
+                        foreach (var cameraSpacePoint in filteredFrame)
+                        {
+                            if (cameraSpacePoint.Z != GlobVar.MaxDepthMeter && float.IsInfinity(cameraSpacePoint.X) && float.IsInfinity(cameraSpacePoint.Y) && cameraSpacePoint.X == 0 && cameraSpacePoint.Y == 0 || cameraSpacePoint.Z == 0) 
+                            {
+                                
+                            }
+                        }
+
+                        if (Diagnostics.LogTimeMedian)
+                        {
+                            stopwatch.Stop();
+                            Console.WriteLine("Median: {0}", stopwatch.ElapsedMilliseconds);
+                        }
+                        stopwatch.Restart();
+
+                        GlobVar.SubtractedFilteredPointCloud = filteredFrame;
+
+                        AnalyzeFrame(depthFrame.RelativeTime, filteredFrame);
+
+                        GlobVar.PreviousFrame = filteredFrame;
+                        GraphicsUtils.RenderDepthPixels(this, filteredFrame);
+
+                    }
+                    depthFrameReader.IsPaused = false;
                 }
            }
         }
 
-        private void PreprocessFrame()
+        private CameraSpacePoint[] PreProcessFrame(CameraSpacePoint[] cameraSpacePoints)
         {
-            Stopwatch stopwatch = new Stopwatch();
-            stopwatch.Start();
+            stopwatch.Restart();
 
-            GlobVar.ScaledCameraSpacePoints = KinectUtils.ScaleFrame(this.cameraSpacePoints);
+            var processedFrame = new CameraSpacePoint[cameraSpacePoints.Length];
 
-            GlobVar.PointCloud = KinectUtils.CreatePointCloudPerspective(GlobVar.ScaledCameraSpacePoints);
+            processedFrame = KinectUtils.ScaleFrame(cameraSpacePoints);
             if (Diagnostics.LogTime)
             {
                 stopwatch.Stop();
-                Console.WriteLine("PointCloud: {0}", stopwatch.ElapsedMilliseconds);
-                stopwatch.Restart();
+                Console.WriteLine("ScaleFrame: {0}", stopwatch.ElapsedMilliseconds);
             }
+            stopwatch.Restart();
 
-            GlobVar.MedianFilteredPointCloud =
-            ImageUtils.MedianFilter3X3PointCloud(GlobVar.PointCloud);
-            if (Diagnostics.LogTime)
+            GlobVar.ScaledCameraSpacePoints = processedFrame;
+
+            //processedFrame =
+            //KinectUtils.DepthFilterBackgroundSubtraction(GlobVar.ScaledCameraSpacePoints);
+            //if (Diagnostics.LogTime) {
+            //    stopwatch.Stop();
+            //    Console.WriteLine("DepthFilterBackgroundSubtraction: {0}", stopwatch.ElapsedMilliseconds);
+            //}
+            //stopwatch.Restart();
+
+            if (!temporalMedianImage.ImageSet)
             {
-                stopwatch.Stop();
-                Console.WriteLine("MedianFilter: {0}", stopwatch.ElapsedMilliseconds);
-                stopwatch.Restart();
+                temporalMedianImage.AddFrame(processedFrame);
             }
 
+            return processedFrame;
         }
 
-        private void AnalyzeFrame(TimeSpan frameRelativeTime)
+        private List<Head> DetectHeads(CameraSpacePoint[] filteredFrame)
         {
-            Stopwatch stopwatch = new Stopwatch();
-            stopwatch.Start();
+            stopwatch.Restart();
 
-            Point[] candidatesHaar = HaarDetector.CreateRegions(GlobVar.MedianFilteredPointCloud);
+            List<int> candidatesHaar = HaarDetector.CreateRegions(filteredFrame);
             if (Diagnostics.LogTimeHaar)
             {
                 stopwatch.Stop();
                 Console.WriteLine("Haar: {0}", stopwatch.ElapsedMilliseconds);
-                stopwatch.Restart();
+            }
+            stopwatch.Restart();
+
+            List<int> candidateHighestPointIndex = new List<int>();
+            for (int i = 0; i < candidatesHaar.Count; i++)
+            {
+                if (Diagnostics.ShowCandidateHeadpixel)
+                {
+                    GraphicsUtils.DrawPoint(candidatesHaar[i]);
+                }
+
+                int candidateIndex = candidatesHaar[i];
+
+                if (candidateIndex != -1)
+                {
+                    int highestPointIndex = ClassificationUtils.GetHighestConnectingPoint(candidateIndex, Thresholds.ClassificationSearchDepthHighestPoint);
+                    candidateHighestPointIndex.Add(highestPointIndex);
+
+                    if (Diagnostics.ShowTopHeadpixel)
+                    {
+                        GraphicsUtils.DrawPoint(highestPointIndex);
+                    }
+                }
+            }
+
+            var groupedHighestIndexes = Validators.GroupCandidateHighestPoints(candidateHighestPointIndex, Thresholds.ValidatorsHighestPointGroupingDistance);
+
+            if (groupedHighestIndexes.Count > 1)
+            {
+                
             }
 
             List<Head> validatedCandidateHeads = new List<Head>();
-            for (int i = 0; i < candidatesHaar.Length; i++)
+            for (int i = 0; i < groupedHighestIndexes.Count; i++)
             {
-                int highestPointIndex = ClassificationUtils.GetHighestPointInSurroundingArea(candidatesHaar[i]);
 
-                List<int> headPointIndexes = ClassificationUtils.ConnectedComponentLabelingIterative(highestPointIndex, 150);
-
-                if (Validators.IsSphericalShape(headPointIndexes, highestPointIndex) && Validators.SizeOfHead(headPointIndexes))
+                var highestPointIndex = groupedHighestIndexes[i];
+                if (Diagnostics.ShowTopHeadPixelAfterGrouping)
                 {
-                    var head = new Head(GlobVar.MedianFilteredPointCloud[highestPointIndex]);
+                    GraphicsUtils.DrawPoint(highestPointIndex);
+                }
+
+                List<int> headPointIndexes = ClassificationUtils.ConnectedComponentLabelingIterative(highestPointIndex, Thresholds.ClassificationLabelingMaxPoints);
+
+                if (Diagnostics.ShowHeadpixelsBeforeValidation)
+                {
+                    foreach (var p in headPointIndexes)
+                    {
+                        GraphicsUtils.DrawPoint(p);
+                    }
+                }
+
+                if (Validators.SizeOfHead(headPointIndexes) && Validators.MovementInFrame(headPointIndexes) && Validators.IsSphericalShape(headPointIndexes, highestPointIndex))
+                {
+                    if (Diagnostics.ShowValidatedTopHeadpixel)
+                    {
+                        GraphicsUtils.DrawPoint(highestPointIndex);
+                    }
+
+                    var head = new Head(highestPointIndex);
                     var success = head.AddHeadPixels(headPointIndexes);
                     if (success == 1)
                     {
                         validatedCandidateHeads.Add(head);
                     }
+                    if (Diagnostics.ShowValidatedHeadPixels)
+                    {
+                        foreach (var p in head.HeadPointIndexes)
+                        {
+                            GraphicsUtils.DrawPoint(p);
+                        }
+                    }
                 }
             }
+            foreach (var head in validatedCandidateHeads)
+            {
+                if (GlobVar.SubtractedFilteredPointCloud[head.HighestPointIndex].Z == GlobVar.MaxDepthMeter || GlobVar.SubtractedFilteredPointCloud[head.HighestPointIndex].X == 0 || float.IsInfinity(GlobVar.SubtractedFilteredPointCloud[head.HighestPointIndex].X))
+                {
+                    
+                }
+            }
+
             GlobVar.ValidatedCandidateHeads = validatedCandidateHeads;
 
-            GlobVar.AdjacancyList = GeodesicUtils.CreateGeodesicGraph(GlobVar.MedianFilteredPointCloud);
-            if (Diagnostics.LogTime)
+            return validatedCandidateHeads;
+        }
+
+        private void AnalyzeFrame(TimeSpan frameRelativeTime, CameraSpacePoint[] filteredFrame)
+        {
+            stopwatch.Restart();
+
+            var validatedHeads = DetectHeads(filteredFrame);
+
+            GlobVar.AdjacancyList = GeodesicUtils.CreateGeodesicGraph(filteredFrame);
+            if (Diagnostics.LogTimeGeodesic)
             {
                 stopwatch.Stop();
                 Console.WriteLine("CreateGeodesicGraph: {0}", stopwatch.ElapsedMilliseconds);
-                stopwatch.Restart();
             }
+            stopwatch.Restart();
 
             if (Diagnostics.ShowGeodesicGraph)
             {
@@ -213,54 +343,63 @@ namespace InteractionDetection
                 }
             }
 
+            if (GlobVar.AdjacancyList.Count == 0 && validatedHeads.Count > 0)
+            {
+                var v = filteredFrame[validatedHeads[0].CenterPointIndex];
+            }           
+
+            Dictionary<Head,int> identifiedHeads = BodyUtils.IdentifyHeads(validatedHeads);
+
             var bodies = new List<Body>();
-            foreach (var candidateHead in validatedCandidateHeads)
+            foreach (var identifiedHead in identifiedHeads)
             {
                 Stopwatch stopwatchBody = new Stopwatch();
                 stopwatchBody.Start();
 
-                if (Diagnostics.ShowHeadPixels)
-                {
-                    foreach (var headPixel in candidateHead.HeadPointIndexes)
-                    {
-                        GlobVar.Canvas[headPixel] = 255;
-                    }
-                }
-
-                int bodyId = BodyUtils.GetBodyIdFromHead(candidateHead);
-
                 Body body;
 
-                if (bodyId == -1)
+                if (identifiedHead.Value == -1)
                 {
-                    body = new Body(GlobVar.MaxBodyCount, frameRelativeTime);
-                    body.AddHead(candidateHead);
-                    bodies.Add(body);
                     GlobVar.MaxBodyCount++;
+                    body = new Body(GlobVar.MaxBodyCount, frameRelativeTime);
+                    body.AddHead(identifiedHead.Key);
+                    bodies.Add(body);
 
-                    GeodesicUtils.AddBodyLandmarks(candidateHead, body);
+                    GeodesicUtils.AddBodyLandmarks(identifiedHead.Key, body);
                     if (Diagnostics.LogTime)
                     {
                         stopwatch.Stop();
                         Console.WriteLine("ShortestPath: {0}", stopwatch.ElapsedMilliseconds);
-                        stopwatch.Restart();
                     }
+                    stopwatch.Restart();
                 }
                 else
                 {
+                    int bodyId = identifiedHead.Value;
+
+                    Head head = identifiedHead.Key;
+                    head.AvgCenterPoint = BodyUtils.GetAverageHeadLocationLastFrames(bodyId);
+
+                    if (Diagnostics.ShowHeadAvgCenterPoint)
+                    {
+                        GraphicsUtils.DrawPoint(head.AvgCenterPoint);
+                    }
+
                     body = new Body(bodyId, frameRelativeTime);
-                    body.AddHead(candidateHead);
+                    body.AddHead(head);
                     bodies.Add(body);
 
-                    GeodesicUtils.AddBodyLandmarks(candidateHead, body);
+                    GeodesicUtils.AddBodyLandmarks(identifiedHead.Key, body);
                     if (Diagnostics.LogTime)
                     {
                         stopwatch.Stop();
                         Console.WriteLine("ShortestPath: {0}", stopwatch.ElapsedMilliseconds);
-                        stopwatch.Restart();
                     }
+                    stopwatch.Restart();
                 }
-                EnergyUtils.UpdateEnergy(body);
+                diagnostics.Draw(body);
+
+                EnergyUtils.UpdateBodyEnergy(body);
                 if (Diagnostics.LogTime)
                 {
                     stopwatchBody.Stop();
@@ -271,9 +410,8 @@ namespace InteractionDetection
             BodyUtils.UpdateBodyHistory(bodies);
             diagnostics.AddNewBodyFrameDiagnostics(bodies, frameRelativeTime);
 
-            Graphics.RenderDepthPixels(this);
-
-            depthFrameReader.IsPaused = false;
+            heatMap.AddFrame(GlobVar.HeatCanvas);
+            energyUtils.UpdateGlobalEnergy(bodies, frameRelativeTime);
 
             if (Diagnostics.PrintFPS)
             {
@@ -281,6 +419,19 @@ namespace InteractionDetection
                 Console.WriteLine("FPS: {0}", GlobUtils.CalculateFPS(currentTime, lastTime));
                 lastTime = currentTime;
             }
+            
+        }
+
+        private void PostProcessing()
+        {
+            // Calculate tracking success of session
+            diagnostics.CalculateTrackingSuccess();
+
+            stopwatch.Restart();
+            var statWindow = new StatisticsWindow();
+            statWindow.Draw(heatMap.GetMap(), energyUtils.GetEnergyHistory(), diagnostics.Timestamps, diagnostics.BodyTrackedHistory);
+            stopwatch.Stop();
+            Console.WriteLine("Statwindow: {0}",stopwatch.ElapsedMilliseconds);
 
         }
     }

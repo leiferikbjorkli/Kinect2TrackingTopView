@@ -17,7 +17,7 @@ namespace InteractionDetection
 
         public static int GetHighestPointInSurroundingArea(Point candidate)
         {
-            const int searchPixelRange = 10;
+            const int searchPixelRange = Thresholds.ClassificationSearchRangeHighestPoint;
 
             int xStartIndex = candidate.x - searchPixelRange;
             int yStartIndex = candidate.y - searchPixelRange;
@@ -25,7 +25,7 @@ namespace InteractionDetection
             int yStopIndex = candidate.y + searchPixelRange;
 
             int maxPointIndex = GlobUtils.GetIndex(candidate);
-            float maxHeight = GlobVar.MedianFilteredPointCloud[maxPointIndex].Z;
+            float maxHeight = GlobVar.SubtractedFilteredPointCloud[maxPointIndex].Z;
 
             for (int i = yStartIndex; i < yStopIndex; i++)
             {
@@ -34,7 +34,7 @@ namespace InteractionDetection
                     int pixelIndex = GlobUtils.GetIndex(j, i);
                     if (pixelIndex != -1)
                     {
-                        float currentHeight = GlobVar.MedianFilteredPointCloud[pixelIndex].Z;
+                        float currentHeight = GlobVar.SubtractedFilteredPointCloud[pixelIndex].Z;
                         if (currentHeight < maxHeight)
                         {
                             maxHeight = currentHeight;
@@ -47,7 +47,39 @@ namespace InteractionDetection
             return maxPointIndex;
         }
 
-        public static List<int> ConnectedComponentLabelingIterative(int startIndex,int maxDepth)
+        public static int GetHighestConnectingPoint(int currentIndex, int searchDepth)
+        {
+            float currentDepth = GlobVar.SubtractedFilteredPointCloud[currentIndex].Z;
+
+            int[] neighbours = GlobUtils.GetNeighbour5x5IndexList(currentIndex);
+
+            int highestNeighbourIndex = currentIndex;
+            float shallowestNeighbourDepth = currentDepth;
+            for (int i = 0; i < neighbours.Length; i++)
+            {
+                int neighbourIndex = neighbours[i];
+                if (!GlobUtils.BoundaryCheck(neighbourIndex))
+                {
+                    continue;
+                }
+                CameraSpacePoint neighbour = GlobVar.SubtractedFilteredPointCloud[neighbourIndex];
+
+                if (neighbour.Z < shallowestNeighbourDepth && !float.IsInfinity(neighbour.X) && !float.IsInfinity(neighbour.Y))
+                {
+                    shallowestNeighbourDepth = neighbour.Z;
+                    highestNeighbourIndex = neighbourIndex;
+                }
+            }
+            if (highestNeighbourIndex == currentIndex || searchDepth == 0)
+            {
+                return currentIndex;
+            }
+            searchDepth--;
+
+            return GetHighestConnectingPoint(highestNeighbourIndex,searchDepth);
+        }
+
+        public static List<int> ConnectedComponentLabelingIterative(int startIndex,int maxPixels)
         {
             var Q = new Queue<int>();
 
@@ -58,15 +90,13 @@ namespace InteractionDetection
             headPixels.Add(startIndex);
             while (Q.Count > 0)
             {
-                if (maxDepth<1)
+                if (maxPixels<1)
                 {
                     break;
                 }
                 int currentIndex = Q.Dequeue();
 
-                float currentDepth = GlobVar.MedianFilteredPointCloud[currentIndex].Z;
-                CameraSpacePoint currentPoint = GlobVar.MedianFilteredPointCloud[currentIndex];
-
+                CameraSpacePoint currentPoint = GlobVar.SubtractedFilteredPointCloud[currentIndex];
 
                 int[] neighbours = GlobUtils.GetNeighbourIndexListFast(currentIndex);
 
@@ -77,17 +107,19 @@ namespace InteractionDetection
                     {
                         continue;
                     }
-                    float neighbourDepth = GlobVar.MedianFilteredPointCloud[neighbourIndex].Z;
-                    CameraSpacePoint neighbourPoint = GlobVar.MedianFilteredPointCloud[neighbourIndex];
+                    CameraSpacePoint neighbourPoint = GlobVar.SubtractedFilteredPointCloud[neighbourIndex];
+
+                    //var v = GlobUtils.GetHeightDifference(currentPoint, neighbourPoint);
 
                     if (!headPixels.Contains(neighbourIndex) &&
-                        Thresholds.ConnectedComponentLabelingMaxDistanceBetweenPoints > GlobUtils.GetEuclideanDistance(currentPoint,neighbourPoint))
+                        Thresholds.ClassificationLabelingMaxDistanceBetweenPoints > GlobUtils.GetHeightDifference(currentPoint,neighbourPoint))
                     {
                         Q.Enqueue(neighbourIndex);
                         headPixels.Add(neighbourIndex);
+                        maxPixels--;
                     }
                 }
-                maxDepth--;
+                
             }
             return headPixels;
             

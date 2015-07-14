@@ -21,12 +21,6 @@ namespace InteractionDetection
         public TimeSpan TimeStamp { get; set; }
         public double EnergyLevel { get; set; }
 
-        public CameraSpacePoint[] HeadPoints { get; set; }
-        //public CameraSpacePoint[] HandPoints { get; set; }
-        //public CameraSpacePoint[] HandPoints { get; set; }
-        //public CameraSpacePoint[] HandPoints { get; set; }
-
-
         public Body(int id, TimeSpan timeStamp)
         {
             Id = id;

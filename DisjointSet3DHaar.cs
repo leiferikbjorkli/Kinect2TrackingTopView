@@ -2,20 +2,25 @@
 // Written by Leif Erik Bjoerkli
 //
 
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Kinect;
 
-namespace InteractionDetection {
+namespace InteractionDetection
+{
 
     /// <summary>
     /// A Union-Find/Disjoint-Set data structure.
     /// </summary>
-    public class DisjointSet {
-
-        public int[] HighestIndexInTree { get; private set; }
+    public class DisjointSet3DHaar
+    {
+        public float[] HighestX { get; private set; }
+        public float[] HighestY { get; private set; }
+        public float[] HighestZ { get; private set; }
 
         /// <summary>
         /// The number of elements in the universe.
@@ -24,8 +29,8 @@ namespace InteractionDetection {
 
         /// <summary>
         /// The parent of each element in the universe. Also label
-        /// </summary>
-        private int[] Parent;
+        /// </summary>s
+        public int[] Parent;
 
         /// <summary>
         /// The rank of each element in the universe.
@@ -42,27 +47,32 @@ namespace InteractionDetection {
         /// </summary>
         public int SetCount { get; private set; }
 
-
         /// <summary>
         /// Initializes a new Disjoint-Set data structure, with the specified amount of elements in the universe.
         /// </summary>
         /// <param name='count'>
         /// The number of elements in the universe.
         /// </param>
-        public DisjointSet(List<int> candidates) {
+        public DisjointSet3DHaar(List<int> candidates)
+        {
 
             this.Count = candidates.Count();
             this.SetCount = this.Count;
+            this.HighestX = new float[this.Count];
+            this.HighestY = new float[this.Count];
+            this.HighestZ = new float[this.Count];
             this.Parent = new int[this.Count];
             this.Rank = new int[this.Count];
             this.SizeOfSet = new int[this.Count];
-            HighestIndexInTree = new int[Count];
 
-            for (int i = 0; i < this.Count; i++) {
+            for (int i = 0; i < this.Count; i++)
+            {
                 this.Parent[i] = i;
                 this.Rank[i] = 0;
                 this.SizeOfSet[i] = 1;
-                HighestIndexInTree[i] = candidates[i];
+                this.HighestX[i] = GlobVar.SubtractedFilteredPointCloud[candidates[i]].X;
+                this.HighestY[i] = GlobVar.SubtractedFilteredPointCloud[candidates[i]].Y;
+                this.HighestZ[i] = GlobVar.SubtractedFilteredPointCloud[candidates[i]].Z;
             }
         }
 
@@ -75,10 +85,14 @@ namespace InteractionDetection {
         /// <remarks>
         /// All elements with the same parent are in the same set.
         /// </remarks>
-        public int Find(int i) {
-            if (this.Parent[i] == i) {
+        public int Find(int i)
+        {
+            if (this.Parent[i] == i)
+            {
                 return i;
-            } else {
+            }
+            else
+            {
                 // Recursively find the real parent of i, and then cache it for later lookups.
                 this.Parent[i] = this.Find(this.Parent[i]);
                 return this.Parent[i];
@@ -94,8 +108,9 @@ namespace InteractionDetection {
         /// <param name='j'>
         /// The second element.
         /// </param>
-        public void Union(int i, int j) {
-         
+        public void Union(int i, int j)
+        {
+
             // Find the representatives (or the root nodes) for the set that includes i
             int irep = this.Find(i),
                 // And do the same for the set that includes j
@@ -115,45 +130,62 @@ namespace InteractionDetection {
             int sizeSetI = this.SizeOfSet[irep];
             int sizeSetJ = this.SizeOfSet[jrep];
 
-            int highestIndex;
-
-            if (GlobVar.SubtractedFilteredPointCloud[HighestIndexInTree[irep]].Z < GlobVar.SubtractedFilteredPointCloud[HighestIndexInTree[jrep]].Z)
-            {
-                highestIndex = HighestIndexInTree[irep];
-            }
-            else
-            {
-                highestIndex = HighestIndexInTree[jrep];
-            }
+            float highestX;
+            float highestY;
+            float highestZ;
 
             // If i's rank is less than j's rank
-            if (irank < jrank) {
-         
+            if (HighestZ[irep] > HighestZ[jrep])
+            {
                 // Then move i under j
                 this.Parent[irep] = jrep;
                 this.SizeOfSet[jrep] += sizeSetI;
-                HighestIndexInTree[jrep] = highestIndex;
+
+                highestX = HighestX[jrep];
+                highestY = HighestY[jrep];
+                highestZ = HighestZ[jrep];
 
             } // Else if j's rank is less than i's rank
-            else if (jrank < irank) {
-         
+            else if (HighestZ[irep] < HighestZ[jrep])
+            {
                 // Then move j under i
                 this.Parent[jrep] = irep;
                 this.SizeOfSet[irep] += sizeSetJ;
-                HighestIndexInTree[irep] = highestIndex;
-                
+
+                highestX = HighestX[irep];
+                highestY = HighestY[irep];
+                highestZ = HighestZ[irep];
             } // Else if their ranks are the same
-            else {
-         
+            else
+            {
                 // Then move i under j (doesn't matter which one goes where)
                 this.Parent[irep] = jrep;
                 this.SizeOfSet[jrep] += sizeSetI;
-                HighestIndexInTree[jrep] = highestIndex;
-         
+
+                highestX = HighestX[jrep];
+                highestY = HighestY[jrep];
+                highestZ = HighestZ[jrep];
+
                 // And increment the the result tree's rank by 1
                 this.Rank[irep]++;
-                
             }
+
+            HighestX[jrep] = highestX;
+            HighestY[jrep] = highestY;
+            HighestZ[jrep] = highestZ;
+
+            HighestX[irep] = highestX;
+            HighestY[irep] = highestY;
+            HighestZ[irep] = highestZ;
+
+            HighestX[i] = highestX;
+            HighestY[i] = highestY;
+            HighestZ[i] = highestZ;
+
+            HighestX[j] = highestX;
+            HighestY[j] = highestY;
+            HighestZ[j] = highestZ;
+
         }
 
         /// <summary>
@@ -162,7 +194,8 @@ namespace InteractionDetection {
         /// <param name='i'>
         /// The element.
         /// </param>
-        public int SetSize(int i) {
+        public int SetSize(int i)
+        {
             return this.SizeOfSet[this.Find(i)];
         }
     }

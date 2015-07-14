@@ -1,13 +1,4 @@
-﻿<!--<Window x:Class="InteractionDetection.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Depth Basics" 
-        Height="600" Width="700" 
-        Closing="MainWindow_Closing">
-    <Image Source="{Binding ImageSource}" />
-</Window>-->
-
-<Window x:Class="InteractionDetection.MainWindow"
+﻿<Window x:Class="InteractionDetection.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Depth Basics" 

@@ -31,7 +31,7 @@ namespace InteractionDetection
             int y = p.y;
             if (x < 0 || x > 255 || y < 0 || y > 211)
             {
-                throw new System.ArgumentException("Coordinates are incorrect");
+                return -1;
             }
 
             return y*GlobVar.ScaledFrameWidth + x;
@@ -58,8 +58,8 @@ namespace InteractionDetection
 
         public static float GetEuclideanDistance(int indexA, int indexB)
         {
-            CameraSpacePoint a = GlobVar.PointCloud[indexA];
-            CameraSpacePoint b = GlobVar.PointCloud[indexB];
+            CameraSpacePoint a = GlobVar.SubtractedFilteredPointCloud[indexA];
+            CameraSpacePoint b = GlobVar.SubtractedFilteredPointCloud[indexB];
 
             float distance =
                 (float) Math.Sqrt((a.X - b.X)*(a.X - b.X) + (a.Y - b.Y)*(a.Y - b.Y) + (a.Z - b.Z)*(a.Z - b.Z));
@@ -73,8 +73,8 @@ namespace InteractionDetection
 
         public static float GetEuclideanDistance(Point a, Point b)
         {
-            CameraSpacePoint aCameraSpace = GlobVar.PointCloud[GetIndex(a)];
-            CameraSpacePoint bCameraSpace = GlobVar.PointCloud[GetIndex(b)];
+            CameraSpacePoint aCameraSpace = GlobVar.SubtractedFilteredPointCloud[GetIndex(a)];
+            CameraSpacePoint bCameraSpace = GlobVar.SubtractedFilteredPointCloud[GetIndex(b)];
 
             return (float)
                 Math.Sqrt((aCameraSpace.X - bCameraSpace.X)*(aCameraSpace.X - bCameraSpace.X) +
@@ -94,6 +94,35 @@ namespace InteractionDetection
             }
             return distance;
         }
+
+        public static float GetEuclideanDistanceXYPlane(CameraSpacePoint a, CameraSpacePoint b)
+        {
+
+            float distance =
+                (float)Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
+
+            if (float.IsNaN(distance))
+            {
+                return float.MaxValue;
+            }
+            return distance;
+        }
+
+        public static float GetEuclideanDistanceXYPlane(int aIndex, int bIndex)
+        {
+            var a = GlobVar.SubtractedFilteredPointCloud[aIndex];
+            var b = GlobVar.SubtractedFilteredPointCloud[bIndex];
+
+            float distance =
+                (float)Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
+
+            if (float.IsNaN(distance))
+            {
+                return float.MaxValue;
+            }
+            return distance;
+        }
+
 
         public static int GetRectangleCenterPointIndex(IndexRectangle rect)
         {
@@ -173,6 +202,11 @@ namespace InteractionDetection
             return neighbourIndexes;
         }
 
+        public static float GetHeightDifference(CameraSpacePoint a, CameraSpacePoint b)
+        {
+            return Math.Abs(a.Z - b.Z);
+        }
+
         public static int[] GetNeighbourIndexListFast(int currentNode)
         {
             int[] neighbourIndexes = new int[8];
@@ -192,60 +226,104 @@ namespace InteractionDetection
  
             return neighbourIndexes;
         }
-        
+
+        public static int[] GetNeighbour5x5IndexList(int currentNode)
+        {
+            int[] neighbourIndexes = new int[24];
+
+            var frameWidth = GlobVar.ScaledFrameWidth;
+
+            Point p = GetPoint(currentNode);
+            int x = p.x;
+            int y = p.y;
+
+            
+            neighbourIndexes[1] = y*frameWidth + x - 1;
+            neighbourIndexes[2] = (y*frameWidth + x) + 1;
+            neighbourIndexes[3] = (y - 1)*frameWidth + x;
+            neighbourIndexes[4] = (y + 1)*frameWidth + x;
+            neighbourIndexes[5] = (y - 1)*frameWidth + x - 1;
+            neighbourIndexes[6] = (y - 1)*frameWidth + x + 1;
+            neighbourIndexes[7] = (y + 1)*frameWidth + x - 1;
+            neighbourIndexes[8] = (y + 1)*frameWidth + x + 1;
+
+            neighbourIndexes[9] = (y - 2)*frameWidth + x - 2;
+            neighbourIndexes[10] = (y - 2)*frameWidth + x - 1;
+            neighbourIndexes[11] = (y - 2)*frameWidth + x;
+            neighbourIndexes[12] = (y - 2)*frameWidth + x + 1;
+            neighbourIndexes[13] = (y - 2)*frameWidth + x + 2;
+
+            neighbourIndexes[14] = (y + 2)*frameWidth + x - 2;
+            neighbourIndexes[15] = (y + 2)*frameWidth + x - 1;
+            neighbourIndexes[16] = (y + 2)*frameWidth + x;
+            neighbourIndexes[17] = (y + 2)*frameWidth + x + 1;
+            neighbourIndexes[18] = (y + 2)*frameWidth + x + 2;
+
+            neighbourIndexes[19] = (y - 1)*frameWidth + x - 2;
+            neighbourIndexes[20] = (y - 1)*frameWidth + x + 2;
+
+            neighbourIndexes[21] = y*frameWidth + x - 2;
+            neighbourIndexes[22] = y*frameWidth + x + 2;
+
+            neighbourIndexes[23] = (y + 1)*frameWidth + x - 2;
+            neighbourIndexes[0] = (y + 1) * frameWidth + x + 2;
+
+            return neighbourIndexes;
+        }
+
         public static double ToRadians(double angle)
         {
             return (Math.PI / 180) * angle;
         }
 
-        public static Point CalculateAveragePoint(List<int> indexes)
-        {
-            int sumX = 0;
-            int sumY = 0;
-            int count = indexes.Count;
+        //public static Point CalculateAveragePoint(List<int> indexes)
+        //{
+        //    int sumX = 0;
+        //    int sumY = 0;
+        //    int count = indexes.Count;
 
-            for (int i = 0; i < count; i++)
-            {
-                Point p = GetPoint(indexes[i]);
-                sumX += p.x;
-                sumY += p.y;
-            }
-            return new Point(sumX/count,sumY/count);
-        }
+        //    for (int i = 0; i < count; i++)
+        //    {
+        //        Point p = GetPoint(indexes[i]);
+        //        sumX += p.x;
+        //        sumY += p.y;
+        //    }
+        //    return new Point(sumX/count,sumY/count);
+        //}
 
         public static int FromWorldToFrameCoordinates(CameraSpacePoint cp)
         {
-            int xPixelCoordinateOfPoint = (int)Math.Round(((cp.X * 1000) / GlobVar.MaxHorizontalWidth) * (GlobVar.ScaledFrameWidth / 2) + (GlobVar.ScaledFrameWidth / 2));
-            int yPixelCoordinateOfPoint = (int)Math.Round(((-cp.Y * 1000) / GlobVar.MaxVerticalHeight) * (GlobVar.ScaledFrameHeight / 2) + (GlobVar.ScaledFrameHeight / 2));
+            int xPixelCoordinateOfPoint = (int)Math.Round(((cp.X * 1000) / GlobVar.HalfMaxHorizontalWidth) * (GlobVar.ScaledFrameWidth / 2) + (GlobVar.ScaledFrameWidth / 2));
+            int yPixelCoordinateOfPoint = (int)Math.Round(((-cp.Y * 1000) / GlobVar.HalfMaxVerticalHeight) * (GlobVar.ScaledFrameHeight / 2) + (GlobVar.ScaledFrameHeight / 2));
 
             return GetIndex(xPixelCoordinateOfPoint, yPixelCoordinateOfPoint);
 
         }
 
-        public static CameraSpacePoint CalculateMeanPoint(List<int> points)
-        {
+        //public static CameraSpacePoint CalculateAveragePoint(List<int> points)
+        //{
 
-            float sumX = 0;
-            float sumY = 0;
-            float sumZ = 0;
+        //    float sumX = 0;
+        //    float sumY = 0;
+        //    float sumZ = 0;
 
-            int count = points.Count;
+        //    int count = points.Count;
 
-            foreach (var index in points)
-            {
-                CameraSpacePoint p = GlobVar.MedianFilteredPointCloud[index];
-                sumX += p.X;
-                sumY += p.Y;
-                sumZ += p.Z;
-            }
+        //    foreach (var index in points)
+        //    {
+        //        CameraSpacePoint p = GlobVar.SubtractedFilteredPointCloud[index];
+        //        sumX += p.X;
+        //        sumY += p.Y;
+        //        sumZ += p.Z;
+        //    }
 
-            return new CameraSpacePoint()
-            {
-                X = sumX/count,
-                Y = sumY/count,
-                Z = sumZ/count
-            };
-        }
+        //    return new CameraSpacePoint()
+        //    {
+        //        X = sumX/count,
+        //        Y = sumY/count,
+        //        Z = sumZ/count
+        //    };
+        //}
 
         public static float DistanceClosestCandidate(int indexPoint)
         {
@@ -253,8 +331,10 @@ namespace InteractionDetection
 
             foreach (var head in GlobVar.ValidatedCandidateHeads)
             {
-                var headIndex = head.CenterPointIndex;
+                var headIndex = head.HighestPointIndex;
                 float currentDistance = GetEuclideanDistance(headIndex, indexPoint);
+
+                //Console.WriteLine(currentDistance);
                 if (currentDistance < minDistance)
                 {
                     minDistance = currentDistance;
@@ -268,5 +348,158 @@ namespace InteractionDetection
             double deltaTime = currentTime.Subtract(lastTime).TotalMilliseconds;
             return 1000/deltaTime;
         }
+
+        public static CameraSpacePoint GetHighestPointInRectangle(int bIndex, int cIndex)
+        {
+            Point pB = GetPoint(bIndex);
+            Point pC = GetPoint(cIndex);
+            int rectangleWidth = pB.x - pC.x;
+
+            CameraSpacePoint highestPoint = new CameraSpacePoint()
+            {
+                X = float.PositiveInfinity,
+                Y = float.PositiveInfinity,
+                Z = float.PositiveInfinity
+            };
+
+            for (int i = 0; i < rectangleWidth; i++)
+            {
+                for (int j = 0; j < rectangleWidth; j++)
+                {
+                    int currentIndex = GetIndex(pC.x + j, pB.y + i);
+                    if (BoundaryCheck(currentIndex))
+                    {
+                        CameraSpacePoint currentPoint = GlobVar.SubtractedFilteredPointCloud[currentIndex];
+
+                        if (currentPoint.Z < highestPoint.Z)
+                        {
+                            highestPoint = currentPoint;
+                        } 
+                    }
+                }
+            }
+            return highestPoint;
+        }
+
+        public static CameraSpacePoint GetHighestValidPointInRectangle(int bIndex, int cIndex)
+        {
+            Point pB = GetPoint(bIndex);
+            Point pC = GetPoint(cIndex);
+            int rectangleWidth = pB.x - pC.x;
+
+            CameraSpacePoint highestPoint = new CameraSpacePoint()
+            {
+                X = float.PositiveInfinity,
+                Y = float.PositiveInfinity,
+                Z = float.PositiveInfinity
+            };
+
+            for (int i = 0; i < rectangleWidth; i++)
+            {
+                for (int j = 0; j < rectangleWidth; j++)
+                {
+                    int currentIndex = GetIndex(pC.x + j, pB.y + i);
+                    if (BoundaryCheck(currentIndex))
+                    {
+                        CameraSpacePoint currentPoint = GlobVar.SubtractedFilteredPointCloud[currentIndex];
+
+                        if (currentPoint.Z < highestPoint.Z && !float.IsInfinity(currentPoint.X) && !float.IsInfinity(currentPoint.Y))
+                        {
+                            highestPoint = currentPoint;
+                        }
+                    }
+                }
+            }
+            return highestPoint;
+        }
+
+        public static int GetHighestValidPointIndexInRectangle(int bIndex, int cIndex)
+        {
+            Point pB = GetPoint(bIndex);
+            Point pC = GetPoint(cIndex);
+            int rectangleWidth = pB.x - pC.x;
+
+            CameraSpacePoint highestPoint = new CameraSpacePoint()
+            {
+                X = float.PositiveInfinity,
+                Y = float.PositiveInfinity,
+                Z = float.PositiveInfinity
+            };
+
+            int highestPointIndex = -1;
+
+            for (int i = 0; i < rectangleWidth; i++)
+            {
+                for (int j = 0; j < rectangleWidth; j++)
+                {
+                    int currentIndex = GetIndex(pC.x + j, pB.y + i);
+                    if (BoundaryCheck(currentIndex))
+                    {
+                        CameraSpacePoint currentPoint = GlobVar.SubtractedFilteredPointCloud[currentIndex];
+
+                        if (currentPoint.Z < highestPoint.Z && !float.IsInfinity(currentPoint.X) && !float.IsInfinity(currentPoint.Y))
+                        {
+                            highestPoint = currentPoint;
+                            highestPointIndex = currentIndex;
+                        }
+                    }
+                }
+            }
+
+            if (GlobVar.SubtractedFilteredPointCloud[highestPointIndex].Z == GlobVar.MaxDepthMeter || GlobVar.SubtractedFilteredPointCloud[highestPointIndex].X == 0 || float.IsInfinity(GlobVar.SubtractedFilteredPointCloud[highestPointIndex].X))
+            {
+
+            }
+            return highestPointIndex;
+        }
+
+
+        public static int GetClosestValidNeighbourInAdjacencyList(int startIndex)
+        {
+            var Q = new Queue<int>();
+
+            Q.Enqueue(startIndex);
+
+            List<int> headPixels = new List<int>();
+
+            int maxPixels = 30;
+            headPixels.Add(startIndex);
+            while (Q.Count > 0)
+            {
+                if (maxPixels < 1)
+                {
+                    return -1;
+                }
+                int currentIndex = Q.Dequeue();
+
+                int[] neighbours = GetNeighbourIndexListFast(currentIndex);
+
+                for (int i = 0; i < neighbours.Length; i++)
+                {
+                    int neighbourIndex = neighbours[i];
+                    if (neighbourIndex == -1)
+                    {
+                        continue;
+                    }
+
+                    if (GlobVar.AdjacancyList.ContainsKey(neighbourIndex))
+                    {
+                        if (GlobVar.AdjacancyList[neighbourIndex].Count > 1)
+                        {
+                            return neighbourIndex;
+                        }
+                    }
+                    Q.Enqueue(neighbourIndex);
+                    headPixels.Add(neighbourIndex);
+                    maxPixels--;
+                    
+                }
+
+            }
+            return -1;
+
+        }    
     }
+
+
 }

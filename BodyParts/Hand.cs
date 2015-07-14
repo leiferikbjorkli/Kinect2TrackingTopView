@@ -17,10 +17,13 @@ namespace InteractionDetection
         public List<CameraSpacePoint> Points { get; set; }
         public int Id { get; set; }
         public CameraSpacePoint CenterPoint { get; set; }
+        public CameraSpacePoint AvgCenterPointLastFiveFrames { get; set; }
 
-        public Hand(CameraSpacePoint centerPoint, int id)
+
+        public Hand(CameraSpacePoint centerPoint, int id, CameraSpacePoint avgCenterPointLastFiveFrames)
         {
             CenterPoint = centerPoint;
+            AvgCenterPointLastFiveFrames = avgCenterPointLastFiveFrames;
             Id = id;
         }
     }

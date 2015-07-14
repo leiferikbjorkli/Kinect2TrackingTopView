@@ -15,13 +15,17 @@ namespace InteractionDetection
 {
     static class BodyUtils
     {
+        private const int NumberOfLastFrames = 5;
+        private const int NumberOfTrackedFrames = 10;
+        private const int NumberOfTrackedFramesStartIndex = NumberOfTrackedFrames - NumberOfLastFrames;
+
         public static int CalculateCenterPointHeadPoints(List<int> headPixels )
         {
             List<CameraSpacePoint> headPoints = new List<CameraSpacePoint>();
 
             for (int i = 0; i < headPixels.Count; i++)
             {
-                CameraSpacePoint rawPoint = GlobVar.PointCloud[headPixels[i]];
+                CameraSpacePoint rawPoint = GlobVar.SubtractedFilteredPointCloud[headPixels[i]];
 
                 if (rawPoint.Z != GlobVar.MaxDepthMeter)
                 {
@@ -53,19 +57,19 @@ namespace InteractionDetection
             };
 
 
-            int xPixelCoordinateOfPoint = (int)Math.Round(((p.X * 1000) / GlobVar.MaxHorizontalWidth) * (GlobVar.ScaledFrameWidth / 2) + (GlobVar.ScaledFrameWidth / 2));
-            int yPixelCoordinateOfPoint = (int)Math.Round(((-p.Y * 1000) / GlobVar.MaxVerticalHeight) * (GlobVar.ScaledFrameHeight / 2) + (GlobVar.ScaledFrameHeight / 2));
+            int xPixelCoordinateOfPoint = (int)Math.Round(((p.X * 1000) / GlobVar.HalfMaxHorizontalWidth) * (GlobVar.ScaledFrameWidth / 2) + (GlobVar.ScaledFrameWidth / 2));
+            int yPixelCoordinateOfPoint = (int)Math.Round(((-p.Y * 1000) / GlobVar.HalfMaxVerticalHeight) * (GlobVar.ScaledFrameHeight / 2) + (GlobVar.ScaledFrameHeight / 2));
 
             return GlobUtils.GetIndex(xPixelCoordinateOfPoint, yPixelCoordinateOfPoint);
         }
 
-        public static CameraSpacePoint CalculateCenterPointHeadPointsPerspective(List<int> headPixels)
+        public static CameraSpacePoint CalculateCenterPointFromValidPoints(List<int> headPixels)
         {
             List<CameraSpacePoint> headPoints = new List<CameraSpacePoint>();
 
             for (int i = 0; i < headPixels.Count; i++)
             {
-                CameraSpacePoint rawPoint = GlobVar.PointCloud[headPixels[i]];
+                CameraSpacePoint rawPoint = GlobVar.SubtractedFilteredPointCloud[headPixels[i]];
 
                 if (rawPoint.Z != GlobVar.MaxDepthMeter)
                 {
@@ -77,17 +81,28 @@ namespace InteractionDetection
             float y = 0;
             float z = 0;
 
+            int xValuesCount = 0;
+            int yValuesCount = 0;
+
             for (int i = 0; i < headPoints.Count; i++)
             {
-                x += headPoints[i].X;
-                y += headPoints[i].Y;
+                var point = headPoints[i];
+                if (!float.IsInfinity(point.X))
+                {
+                    x += point.X;
+                    xValuesCount++;
+                }
+                if (!float.IsInfinity(point.Y))
+                {
+                    y += point.Y;
+                    yValuesCount++;
+                }
                 z += headPoints[i].Z;
             }
 
-            x = x / headPoints.Count;
-            y = y / headPoints.Count;
+            x = x / xValuesCount;
+            y = y / yValuesCount;
             z = z / headPoints.Count;
-
 
             var p = new CameraSpacePoint
             {
@@ -96,17 +111,17 @@ namespace InteractionDetection
                 Z = z
             };
 
-
-            //int xPixelCoordinateOfPoint = (int)Math.Round(((p.X * 1000) /
-            //GlobVar.MaxHorizontalWidth) * (GlobVar.ScaledFrameWidth / 2) +
-            //(GlobVar.ScaledFrameWidth / 2)); int yPixelCoordinateOfPoint =
-            //(int)Math.Round(((-p.Y * 1000) / GlobVar.MaxVerticalHeight) *
-            //(GlobVar.ScaledFrameHeight / 2) + (GlobVar.ScaledFrameHeight /
-            //2));
-
             return p;
         }
 
+        public static void InitializeBodyHistory()
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                List<Body> emptyBodies = new List<Body>();
+                GlobVar.BodiesHistory.Enqueue(emptyBodies);
+            }
+        }
 
         public static void UpdateBodyHistory(List<Body> newBodies)
         {
@@ -120,33 +135,107 @@ namespace InteractionDetection
             }
         }
 
-        public static int GetBodyIdFromHead(Head head)
+        public static Dictionary<Head,int> IdentifyHeads(List<Head> validatedCandidateHeads)
         {
-            float minDistanceHeads = float.MaxValue;
-            int bodyId = -1;
+            Dictionary<Head,int> identifiedHeads = new Dictionary<Head, int>();
 
-            foreach (var bodies in GlobVar.BodiesHistory)
+            List<int> recentBodyIds = new List<int>();
+            for (int i = GlobVar.BodiesHistory.Count - 1; i >= NumberOfTrackedFramesStartIndex; i--)
             {
-                foreach (var body in bodies)
+                foreach (var body in GlobVar.BodiesHistory.ElementAt(i))
                 {
-                    int currentBodyId = body.Id;
-
-                    CameraSpacePoint avgHeadPoint = GetAverageHeadLocationLastTenFrames(currentBodyId);
-
-                    //Graphics.DrawPoint(avgHeadPoint);
-
-                    float currentDistanceHeads = GlobUtils.GetEuclideanDistance(avgHeadPoint, head.CenterPoint);
-
-                    if (currentDistanceHeads < minDistanceHeads && currentDistanceHeads < Thresholds.LastTenFramesHeadMaxDistance)
+                    if (!recentBodyIds.Contains(body.Id))
                     {
-                        minDistanceHeads = currentDistanceHeads;
-                        bodyId = currentBodyId;
+                        recentBodyIds.Add(body.Id);
                     }
                 }
             }
 
-            return bodyId;
+            var avgLocationsLastHeads = new Dictionary<int, CameraSpacePoint>();
+
+            foreach (var bodyId in recentBodyIds)
+            {
+                avgLocationsLastHeads.Add(bodyId,GetAverageHeadLocationLastTenFrames(bodyId));
+                if (Diagnostics.ShowHeadAvgCenterLastTenFrames)
+                {
+                    if (!float.IsNaN(GetAverageHeadLocationLastTenFrames(bodyId).Z))
+                    {
+                        GraphicsUtils.DrawPoint(GetAverageHeadLocationLastTenFrames(bodyId));
+                    }
+                }
+            }
+
+            var avgDistancesFromCandidateHeadsToLastHeads = new Dictionary<Tuple<Head, int>, float>();
+            
+            foreach (var candidateHead in validatedCandidateHeads)
+            {
+                foreach (var avgLocationLastHead in avgLocationsLastHeads)
+                {
+                    var assignment = new Tuple<Head, int>(candidateHead,avgLocationLastHead.Key);
+                    var distanceToCandidate = GlobUtils.GetEuclideanDistance(candidateHead.CenterPoint,
+                        avgLocationLastHead.Value);
+
+                    if (distanceToCandidate < Thresholds.LastFramesHeadMaxDistance)
+                    {
+                        avgDistancesFromCandidateHeadsToLastHeads.Add(assignment,distanceToCandidate);
+                    }
+                }
+            }
+
+            var sortedDistances = avgDistancesFromCandidateHeadsToLastHeads.OrderBy(i => i.Value);
+
+            foreach (var sortedDistance in sortedDistances)
+            {
+                var candidatePair = sortedDistance.Key;
+                var candidateHead = candidatePair.Item1;
+                var headId = candidatePair.Item2;
+                if (!identifiedHeads.ContainsKey(candidateHead) && !identifiedHeads.ContainsValue(headId))
+                {
+                    identifiedHeads.Add(candidateHead,headId);
+                }
+            }
+
+            foreach (var candidateHead in validatedCandidateHeads)
+            {
+                if (!identifiedHeads.ContainsKey(candidateHead))
+                {
+                    identifiedHeads.Add(candidateHead,-1);
+                }
+            }
+
+            return identifiedHeads;
         }
+
+        //public static int GetBodyIdFromHead(Head head) {
+        //    float minDistanceHeads = float.MaxValue;
+        //    int bodyId = -1;
+
+        //    foreach (var bodies in GlobVar.BodiesHistory)
+        //    {
+        //        foreach (var body in bodies)
+        //        {
+        //            int currentBodyId = body.Id;
+
+        //            CameraSpacePoint avgHeadPoint = GetAverageHeadLocationLastTenFrames(currentBodyId);
+
+        //            if (Diagnostics.ShowHeadAvgCenterPoint)
+        //            {
+        //                GraphicsUtils.DrawPoint(avgHeadPoint);
+        //            }
+
+        //            float currentDistanceHeads = GlobUtils.GetEuclideanDistance(avgHeadPoint, head.CenterPoint);
+
+        //            Console.WriteLine(currentDistanceHeads);
+        //            if (currentDistanceHeads < minDistanceHeads && currentDistanceHeads < Thresholds.LastFramesHeadMaxDistance)
+        //            {
+        //                minDistanceHeads = currentDistanceHeads;
+        //                bodyId = currentBodyId;
+        //            }
+        //        }
+        //    }
+
+        //    return bodyId;
+        //}
 
         public static CameraSpacePoint GetAverageHeadLocationLastTenFrames(int newBodyId)
         {
@@ -172,16 +261,15 @@ namespace InteractionDetection
                     }
                 }
             }
-
             return new CameraSpacePoint
             {
-                X =sumX/bodiesCount,
-                Y = sumY/bodiesCount,
-                Z = sumZ/bodiesCount
+                X = sumX / bodiesCount,
+                Y = sumY / bodiesCount,
+                Z = sumZ / bodiesCount
             };
         }
 
-        public static CameraSpacePoint GetAverageTorsoLocationLastTenFrames(int newBodyId)
+        public static CameraSpacePoint GetAverageHeadLocationLastFrames(int newBodyId)
         {
             float sumX = 0;
             float sumY = 0;
@@ -189,7 +277,48 @@ namespace InteractionDetection
 
             float bodiesCount = 0;
 
-            for (int i = 0; i < GlobVar.BodiesHistory.Count; i++)
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
+            {
+                var bodies = GlobVar.BodiesHistory.ElementAt(i);
+                for (int j = 0; j < bodies.Count; j++)
+                {
+                    var body = bodies[j];
+                    if (body.Id == newBodyId)
+                    {
+                        CameraSpacePoint p = body.Head.CenterPoint;
+                        sumX += p.X;
+                        sumY += p.Y;
+                        sumZ += p.Z;
+                        bodiesCount++;
+                    }
+                }
+            }
+            if (bodiesCount == NumberOfLastFrames)
+            {
+                return new CameraSpacePoint
+                {
+                    X = sumX / bodiesCount,
+                    Y = sumY / bodiesCount,
+                    Z = sumZ / bodiesCount
+                };
+            }
+            return new CameraSpacePoint
+            {
+                X = float.NaN,
+                Y = float.NaN,
+                Z = float.NaN
+            };
+        }
+
+        public static CameraSpacePoint GetAverageTorsoLocationLastFrames(int newBodyId)
+        {
+            float sumX = 0;
+            float sumY = 0;
+            float sumZ = 0;
+
+            int bodiesCount = 0;
+
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
                 var bodies = GlobVar.BodiesHistory.ElementAt(i);
                 for (int j = 0; j < bodies.Count; j++)
@@ -206,17 +335,26 @@ namespace InteractionDetection
                 }
             }
 
+            //Console.WriteLine(bodiesCount);
+            if (bodiesCount == NumberOfLastFrames)
+            {
+                return new CameraSpacePoint
+                {
+                    X = sumX / bodiesCount,
+                    Y = sumY / bodiesCount,
+                    Z = sumZ / bodiesCount
+                };
+            }
             return new CameraSpacePoint
             {
-                X = sumX / bodiesCount,
-                Y = sumY / bodiesCount,
-                Z = sumZ / bodiesCount
+                X = float.NaN,
+                Y = float.NaN,
+                Z = float.NaN
             };
         }
 
-        public static CameraSpacePoint[] GetAverageHandLocationsLastTenFrames(int bodyId)
+        public static CameraSpacePoint[] GetAverageHandLocationsLastFrames(int bodyId)
         {
-            
             float sumXfirstHand = 0;
             float sumYfirstHand = 0;
             float sumZfirstHand = 0;
@@ -229,7 +367,7 @@ namespace InteractionDetection
             float secondHandCount = 0;
 
 
-            for (int i = 0; i < GlobVar.BodiesHistory.Count; i++)
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
                 var bodies = GlobVar.BodiesHistory.ElementAt(i);
                 for (int j = 0; j < bodies.Count; j++)
@@ -248,7 +386,8 @@ namespace InteractionDetection
                                     sumYfirstHand += p.Y;
                                     sumZfirstHand += p.Z;
                                     firstHandCount++;
-                                } else if (hand.Id == 1)
+                                }
+                                else if (hand.Id == 1)
                                 {
                                     sumXsecondHand += p.X;
                                     sumYsecondHand += p.Y;
@@ -257,7 +396,7 @@ namespace InteractionDetection
                                 }
                             }
                         }
-                        
+
                     }
                 }
             }
@@ -276,58 +415,58 @@ namespace InteractionDetection
                 Z = sumZsecondHand / secondHandCount
             };
 
-            if (firstHand.Z == 0 || secondHand.Z == 0)
-            {
-                
-
-            }
-
-            return new CameraSpacePoint[]{firstHand,secondHand};
+            return new CameraSpacePoint[] { firstHand, secondHand };
         }
 
         public static bool HasFirstHandTracking(int bodyId)
         {
-            foreach (var bodies in GlobVar.BodiesHistory)
+            int trackedHands = 0;
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
-                foreach (var body in bodies)
+                foreach (var body in GlobVar.BodiesHistory.ElementAt(i))
                 {
                     if (body.Id == bodyId && body.Hands[0] != null)
                     {
-                        return true;
+                        trackedHands++;
                     }
                 }
             }
-            return false;
+
+            return trackedHands == NumberOfLastFrames;
         }
 
         public static bool HasSecondHandTracking(int bodyId)
         {
-            foreach (var bodies in GlobVar.BodiesHistory)
+            int trackedHands = 0;
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
-                foreach (var body in bodies)
+                foreach (var body in GlobVar.BodiesHistory.ElementAt(i))
                 {
                     if (body.Id == bodyId && body.Hands[1] != null)
                     {
-                        return true;
+                        trackedHands++;
                     }
                 }
             }
-            return false;
+
+            return trackedHands == NumberOfLastFrames;
         }
 
         public static bool HasTorsoTracking(int bodyId)
         {
-            foreach (var bodies in GlobVar.BodiesHistory)
+            int trackedTorsos = 0;
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
-                foreach (var body in bodies)
+                foreach (var body in GlobVar.BodiesHistory.ElementAt(i))
                 {
                     if (body.Id == bodyId && body.Torso != null)
                     {
-                        return true;
+                        trackedTorsos++;
                     }
                 }
             }
-            return false;
+
+            return trackedTorsos == NumberOfLastFrames;
         }
 
         public static bool HasBodyTracking()
@@ -339,9 +478,9 @@ namespace InteractionDetection
         {
             List<Body> bodiesWithId = new List<Body>();
 
-            foreach (var bodies in GlobVar.BodiesHistory)
+            for (int i = 7; i < GlobVar.BodiesHistory.Count-1; i++)
             {
-                foreach (var body in bodies)
+                foreach (var body in GlobVar.BodiesHistory.ElementAt(i))
                 {
                     if (body.Id == bodyId)
                     {
@@ -349,6 +488,12 @@ namespace InteractionDetection
                     }
                 }
             }
+
+            if (bodiesWithId.Count > 0)
+            {
+                
+            }
+
             return bodiesWithId;
 
         }

@@ -1,0 +1,9 @@
+﻿<Window x:Class="InteractionDetection.StatisticsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Closing="Stat_Window_Closing">
+        Title="StatisticsWindow" Height="{x:Static SystemParameters.FullPrimaryScreenHeight}" Width="{x:Static SystemParameters.FullPrimaryScreenWidth}">
+        
+</Window>
+    
+    

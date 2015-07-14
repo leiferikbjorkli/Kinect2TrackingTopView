@@ -3,16 +3,13 @@
 //
 
 
-using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows;
-using System.Windows.Media.Imaging;
 
 namespace InteractionDetection
 {
@@ -30,12 +27,27 @@ namespace InteractionDetection
             if (BodyUtils.HasBodyTracking())
             {
                 //DrawBodies();
-                //DrawEnergy();
+                DrawEnergyValue();
             }
 
             canvas.Background = new ImageBrush(GlobVar.IntensityBitmap);
             window.Content = canvas;
             window.Show();
+        }
+
+        private static void DrawEnergyValue()
+        {
+            List<Body> lastBodies = GlobVar.BodiesHistory.ElementAt(GlobVar.BodiesHistory.Count - 1);
+
+            for (int i = 0; i < lastBodies.Count; i++)
+            {
+
+                TextBlock textBlock = new TextBlock();
+                textBlock.Text = string.Format("{0:N2}", lastBodies[i].EnergyLevel);
+                textBlock.Foreground = new SolidColorBrush(GraphicsUtils.GetColorFromBodyId(lastBodies[i].Id));
+                textBlock.Margin = new Thickness(100, 200 + 20 * lastBodies[i].Id, 0, 0);
+                canvas.Children.Add(textBlock);
+            }
         }
 
         private static void DrawEnergy()
@@ -49,7 +61,7 @@ namespace InteractionDetection
                 int x = i*40+50;
                 int y = 190;
 
-                DrawEllipse(ellipseSize, x, y, GetColor(lastBodies[i].Id), 0.5);
+                DrawEllipse(ellipseSize, x, y, GraphicsUtils.GetColorFromBodyId(lastBodies[i].Id), 0.5);
                     
             }
         }
@@ -61,17 +73,17 @@ namespace InteractionDetection
             foreach (var body in GlobVar.BodiesHistory.ElementAt(GlobVar.BodiesHistory.Count-1))
             {
                 Point pHead = GlobUtils.GetPoint(body.Head.CenterPointIndex);
-                DrawEllipse(ellipseSize, pHead.x, pHead.y, GetColor(body.Id), 0.5);
+                DrawEllipse(ellipseSize, pHead.x, pHead.y, GraphicsUtils.GetColorFromBodyId(body.Id), 0.5);
 
                 if (body.Hands[0] != null)
                 {
                     Point p = KinectUtils.GetFramePointFromCameraSpace(body.Hands[0].CenterPoint);
-                    DrawEllipse(ellipseSize, p.x, p.y, GetColor(4), 0.5);
+                    DrawEllipse(ellipseSize, p.x, p.y, GraphicsUtils.GetColorFromBodyId(4), 0.5);
                 }
                 if (body.Hands[1] != null)
                 {
                     Point p = KinectUtils.GetFramePointFromCameraSpace(body.Hands[1].CenterPoint);
-                    DrawEllipse(ellipseSize, p.x, p.y, GetColor(5), 0.5);
+                    DrawEllipse(ellipseSize, p.x, p.y, GraphicsUtils.GetColorFromBodyId(5), 0.5);
                 }
             }
 
@@ -92,32 +104,6 @@ namespace InteractionDetection
             ellipse.Opacity = opacity;
 
             canvas.Children.Add(ellipse);
-        }
-
-        private static Color GetColor(int i)
-        {
-            switch (i)
-            {
-                case 0:
-                    return Color.FromRgb(255, 0, 255);
-                case 1:
-                    return Color.FromRgb(0, 255, 255);
-                case 2:
-                    return Color.FromRgb(255, 255, 255);
-                case 3:
-                    return Color.FromRgb(255, 255, 0);
-                case 4:
-                    return Color.FromRgb(255, 0, 0);
-                case 5:
-                    return Color.FromRgb(0, 0, 255);
-                case 6:
-                    return Color.FromRgb(0, 255, 0);
-                case 7:
-                    return Color.FromRgb(150, 100, 100);
-                case 8:
-                    return Color.FromRgb(255, 130, 0);
-            }
-            return Color.FromRgb(255, 255, 255);
         }
 
     }

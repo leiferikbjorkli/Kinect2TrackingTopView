@@ -20,32 +20,47 @@ namespace InteractionDetection
         public Point CartesianCenterPoint;
         public CameraSpacePoint CenterPoint { get; set; }
         public CameraSpacePoint HighestPoint { get; set; }
+        private CameraSpacePoint _avgCenterPoint;
+        public int HighestPointIndex;
 
-        public Head(CameraSpacePoint highestPoint)
+        public CameraSpacePoint AvgCenterPoint
         {
-            HighestPoint = highestPoint;
+            get { return _avgCenterPoint; }
+            set { _avgCenterPoint = value; }
+        }
+
+
+        public Head(int highestPointIndex)
+        {
+            HighestPointIndex = highestPointIndex;
+            AvgCenterPoint = new CameraSpacePoint()
+            {
+                X = float.NaN,
+                Y = float.NaN,
+                Z = float.NaN
+            };
         }
 
         public int AddHeadPixels(List<int> headPixels )
         {
             HeadPointIndexes = headPixels;
-            CenterPoint = BodyUtils.CalculateCenterPointHeadPointsPerspective(headPixels);
+            CenterPoint = BodyUtils.CalculateCenterPointFromValidPoints(headPixels);
 
             var depthSpacePoint = GlobVar.CoordinateMapper.MapCameraPointToDepthSpace(CenterPoint);
 
             CenterPointIndex = GlobUtils.GetIndex((int)Math.Round(depthSpacePoint.X) / 2, (int)Math.Round(depthSpacePoint.Y) / 2);
 
-            
             if (CenterPointIndex == -1)
             {
                 return -1;
             }
 
-            CartesianCenterPoint = GlobUtils.GetPoint(CenterPointIndex);
+            if (float.IsInfinity(GlobVar.SubtractedFilteredPointCloud[CenterPointIndex].X) || float.IsInfinity(GlobVar.SubtractedFilteredPointCloud[CenterPointIndex].Y) || GlobVar.SubtractedFilteredPointCloud[CenterPointIndex].Z == GlobVar.MaxDepthMeter)
+            {
+
+            }
+
             return 1;
         }
-
-        
-
     }
 }

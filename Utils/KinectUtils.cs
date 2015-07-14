@@ -11,18 +11,27 @@ namespace InteractionDetection
 {
     public static class KinectUtils
     {
-        public static CameraSpacePoint[] CreatePointCloudPerspective(CameraSpacePoint[] cameraSpacePoints)
+
+        public static CameraSpacePoint[] DepthFilterBackgroundSubtraction(CameraSpacePoint[] cameraSpacePoints)
         {
-            CameraSpacePoint[] pointCloud = ImageUtils.CreateEmptyPointCloud();
+            CameraSpacePoint[] pointCloud = new CameraSpacePoint[cameraSpacePoints.Length];
+
+            float maxDepth = GlobVar.MaxDepthMeter;
+            float minDepth = GlobVar.MinDepthMeter;
+            float maxXWidth = GlobVar.MaxXWidth;
+            float maxYWidth = GlobVar.MaxYWidth;
 
             for (int i = 0; i < cameraSpacePoints.Length; i++)
             {
                 CameraSpacePoint cameraSpacePoint = cameraSpacePoints[i];
 
-                if ((int)(cameraSpacePoint.Z * 1000) > GlobVar.MinDepth && (int)(cameraSpacePoint.Z * 1000) < GlobVar.MaxDepth && Math.Abs(cameraSpacePoint.X) < GlobVar.MaxXWidth && Math.Abs(cameraSpacePoint.Y) < GlobVar.MaxYWidth)
+                if (cameraSpacePoint.Z < minDepth && cameraSpacePoint.Z > maxDepth && Math.Abs(cameraSpacePoint.X) > maxXWidth && Math.Abs(cameraSpacePoint.Y) > maxYWidth)
                 {
-                    pointCloud[i] = cameraSpacePoint;
+                    cameraSpacePoint.Z = maxDepth;
                 }
+
+                pointCloud[i] = cameraSpacePoint;
+
             }
             return pointCloud;
         }
@@ -31,45 +40,50 @@ namespace InteractionDetection
         { 
             CameraSpacePoint[] newFrame = new CameraSpacePoint[GlobVar.ScaledFrameLength];
             int k = 0;
-            for (int i = 0; i < GlobVar.FrameHeight-1; i+=2)
+
+            var frameHeight = GlobVar.FrameHeight;
+            var frameWidth = GlobVar.FrameWidth;
+            var maxDepth = GlobVar.MaxDepthMeter;
+
+            for (int i = 0; i < frameHeight - 1; i += 2)
             {
-                for (int j = 0; j < GlobVar.FrameWidth-1; j+=2)
+                for (int j = 0; j < frameWidth - 1; j += 2)
                 {
                     float sumX = 0;
                     float sumY = 0;
                     float sumZ = 0;
                     int validPixels = 0;
 
-                    CameraSpacePoint upLeft = cameraSpacePoints[(i * GlobVar.FrameWidth) + j];
+                    CameraSpacePoint upLeft = cameraSpacePoints[(i * frameWidth) + j];
                     float depthCurrent = upLeft.Z;
-                    if (!float.IsInfinity(upLeft.X) && !float.IsInfinity(upLeft.Y))
+                    if (!float.IsInfinity(depthCurrent))
                     {
                         sumX += upLeft.X;
                         sumY += upLeft.Y;
                         sumZ += depthCurrent;
                         validPixels++;
                     }
-                    CameraSpacePoint right = cameraSpacePoints[(i * GlobVar.FrameWidth) + j + 1];
+                    CameraSpacePoint right = cameraSpacePoints[(i * frameWidth) + j + 1];
                     float depthRight = right.Z;
-                    if (!float.IsInfinity(right.X) && !float.IsInfinity(right.Y))
+                    if (!float.IsInfinity(depthRight))
                     {
                         sumX += right.X;
                         sumY += right.Y;
                         sumZ += depthRight;
                         validPixels++;
                     }
-                    CameraSpacePoint down = cameraSpacePoints[(i * GlobVar.FrameWidth + 1) + j];
+                    CameraSpacePoint down = cameraSpacePoints[(i * frameWidth + 1) + j];
                     float depthDown = down.Z;
-                    if (!float.IsInfinity(down.X) && !float.IsInfinity(down.Y))
+                    if (!float.IsInfinity(depthDown))
                     {
                         sumX += down.X;
                         sumY += down.Y;
                         sumZ += depthDown;
                         validPixels++;
                     }
-                    CameraSpacePoint rightDown = cameraSpacePoints[(i * GlobVar.FrameWidth + 1) + j + 1];
+                    CameraSpacePoint rightDown = cameraSpacePoints[(i * frameWidth + 1) + j + 1];
                     float depthRightDown = rightDown.Z;
-                    if (!float.IsInfinity(rightDown.X) && !float.IsInfinity(rightDown.Y))
+                    if (!float.IsInfinity(depthRightDown))
                     {
                         sumX += rightDown.X;
                         sumY += rightDown.Y;
@@ -78,7 +92,12 @@ namespace InteractionDetection
                     }
                     if (validPixels == 0)
                     {
-                        newFrame[k] = rightDown;
+                        newFrame[k] = new CameraSpacePoint()
+                        {
+                            X = float.PositiveInfinity,
+                            Y = float.PositiveInfinity,
+                            Z = maxDepth
+                        };
                     }
                     else
                     {
@@ -113,8 +132,8 @@ namespace InteractionDetection
             {
                 if ((int)(cameraSpacePoint.Z * 1000) > GlobVar.MinDepth && (int)(cameraSpacePoint.Z * 1000) < GlobVar.MaxDepth && Math.Abs(cameraSpacePoint.X) < GlobVar.MaxXWidth && Math.Abs(cameraSpacePoint.Y) < GlobVar.MaxYWidth)
                 {
-                    int xPixelCoordinateOfPoint = (int)Math.Round(((cameraSpacePoint.X * 1000) / GlobVar.MaxHorizontalWidth) * (frameWidth / 2) + (frameWidth / 2));
-                    int yPixelCoordinateOfPoint = (int)Math.Round(((cameraSpacePoint.Y * 1000) / GlobVar.MaxVerticalHeight) * (frameHeight / 2) + (frameHeight / 2));
+                    int xPixelCoordinateOfPoint = (int)Math.Round(((cameraSpacePoint.X * 1000) / GlobVar.HalfMaxHorizontalWidth) * (frameWidth / 2) + (frameWidth / 2));
+                    int yPixelCoordinateOfPoint = (int)Math.Round(((cameraSpacePoint.Y * 1000) / GlobVar.HalfMaxVerticalHeight) * (frameHeight / 2) + (frameHeight / 2));
 
                     if (xPixelCoordinateOfPoint >= frameWidth)
                     {
@@ -181,6 +200,13 @@ namespace InteractionDetection
             var depthSpacePoint = GlobVar.CoordinateMapper.MapCameraPointToDepthSpace(p);
 
             return new Point((int)Math.Round(depthSpacePoint.X) / 2, (int)Math.Round(depthSpacePoint.Y) / 2);
+        }
+        public static int GetFrameIndexFromCameraSpace(CameraSpacePoint p)
+        {
+            var depthSpacePoint = GlobVar.CoordinateMapper.MapCameraPointToDepthSpace(p);
+
+
+            return GlobUtils.GetIndex(new Point((int)Math.Round(depthSpacePoint.X) / 2, (int)Math.Round(depthSpacePoint.Y) / 2));
         }
     }
 

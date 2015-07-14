@@ -13,7 +13,7 @@ using Microsoft.Kinect;
 
 namespace InteractionDetection
 {
-    internal static class GeodesicUtils
+    static class GeodesicUtils
     {
         //anatomical landmarks are defined as pixels at constant differences
         //from top of head
@@ -21,14 +21,15 @@ namespace InteractionDetection
         private static void AddTorso(Body body, List<int> torsoPoints )
         {
 
-            CameraSpacePoint currentMean = GlobUtils.CalculateMeanPoint(torsoPoints);
+            CameraSpacePoint currentAvg = BodyUtils.CalculateCenterPointFromValidPoints(torsoPoints);
             if (BodyUtils.HasTorsoTracking(body.Id))
             {
-                CameraSpacePoint meanLastTenFrames = BodyUtils.GetAverageTorsoLocationLastTenFrames(body.Id);
+                CameraSpacePoint avgLastFrames = BodyUtils.GetAverageTorsoLocationLastFrames(body.Id);
 
-                if (GlobUtils.GetEuclideanDistance(meanLastTenFrames, currentMean) < Thresholds.LastTenFramesTorsoMaxDistance)
+                //Console.WriteLine(GlobUtils.GetEuclideanDistance(avgLastFiveFrames, currentAvg));
+                if (GlobUtils.GetEuclideanDistance(avgLastFrames, currentAvg) < Thresholds.LastFramesTorsoMaxDistance)
                 {
-                    Torso torso = new Torso(currentMean);
+                    Torso torso = new Torso(currentAvg, avgLastFrames);
                     body.AddTorso(torso);
 
                     //Graphics.DrawPoint(currentMean);
@@ -36,7 +37,7 @@ namespace InteractionDetection
             }
             else
             {
-                Torso torso = new Torso(currentMean);
+                Torso torso = new Torso(currentAvg, new CameraSpacePoint() { X = float.NaN, Y = float.NaN, Z = float.NaN });
                 body.AddTorso(torso);
                 //Graphics.DrawPoint(currentMean);
             }
@@ -49,38 +50,38 @@ namespace InteractionDetection
 
             Hand[] newHands = new Hand[2];
 
-            var averageHandLocationsLastTenFrames = BodyUtils.GetAverageHandLocationsLastTenFrames(body.Id);
-            CameraSpacePoint avgFirstHandPoint = averageHandLocationsLastTenFrames[0];
-            CameraSpacePoint avgSecondHandPoint = averageHandLocationsLastTenFrames[1];
+            var averageHandLocationsLastFiveFrames = BodyUtils.GetAverageHandLocationsLastFrames(body.Id);
+            CameraSpacePoint avgFirstHandPoint = averageHandLocationsLastFiveFrames[0];
+            CameraSpacePoint avgSecondHandPoint = averageHandLocationsLastFiveFrames[1];
 
-            Dictionary<int, float> distances = new Dictionary<int, float>();
+            Dictionary<int, float> distancesToHandAverages = new Dictionary<int, float>();
 
             int index = 0;
             foreach (var handCenterPoint in handCenterPoints)
             {
                 float distToFirstHandAverage = GlobUtils.GetEuclideanDistance(avgFirstHandPoint, handCenterPoint);
-                distances.Add(index, distToFirstHandAverage);
+                distancesToHandAverages.Add(index, distToFirstHandAverage);
                 index++;
                 float distToSecondHandAverage = GlobUtils.GetEuclideanDistance(avgSecondHandPoint, handCenterPoint);
-                distances.Add(index, distToSecondHandAverage);
+                distancesToHandAverages.Add(index, distToSecondHandAverage);
                 index++;
             }
-            var sortedDistances = distances.OrderBy(kvp => kvp.Value);
+            var sortedDistancesToHandAverages = distancesToHandAverages.OrderBy(kvp => kvp.Value);
 
 
             if (BodyUtils.HasFirstHandTracking(body.Id) || BodyUtils.HasSecondHandTracking(body.Id))
             {
                 bool[] handsUsed = new bool[] { false, false };
 
-                foreach (var distance in sortedDistances)
+                foreach (var distance in sortedDistancesToHandAverages)
                 {
                     if (distance.Key == 0)
                     {
                         if (BodyUtils.HasFirstHandTracking(body.Id))
                         {
-                            if (distances[distance.Key] < Thresholds.LastTenFramesHandMaxDistance)
+                            if (distancesToHandAverages[distance.Key] < Thresholds.LastFramesHandMaxDistance)
                             {
-                                Hand hand = new Hand(handCenterPoints[0], 0);
+                                Hand hand = new Hand(handCenterPoints[0], 0, avgFirstHandPoint);
                                 if (newHands[0] == null && !handsUsed[0])
                                 {
                                     newHands[0] = hand;
@@ -90,7 +91,7 @@ namespace InteractionDetection
                         }
                         else
                         {
-                            Hand hand = new Hand(handCenterPoints[0], 0);
+                            Hand hand = new Hand(handCenterPoints[0], 0, avgFirstHandPoint);
                             if (newHands[0] == null && !handsUsed[0])
                             {
                                 newHands[0] = hand;
@@ -102,9 +103,9 @@ namespace InteractionDetection
                     {
                         if (BodyUtils.HasSecondHandTracking(body.Id))
                         {
-                            if (distances[distance.Key] < Thresholds.LastTenFramesHandMaxDistance)
+                            if (distancesToHandAverages[distance.Key] < Thresholds.LastFramesHandMaxDistance)
                             {
-                                Hand hand = new Hand(handCenterPoints[0], 1);
+                                Hand hand = new Hand(handCenterPoints[0], 1, avgSecondHandPoint);
                                 if (newHands[1] == null && !handsUsed[0])
                                 {
                                     newHands[1] = hand;
@@ -114,7 +115,7 @@ namespace InteractionDetection
                         }
                         else
                         {
-                            Hand hand = new Hand(handCenterPoints[0], 1);
+                            Hand hand = new Hand(handCenterPoints[0], 1, avgSecondHandPoint);
                             if (newHands[1] == null && !handsUsed[0])
                             {
                                 newHands[1] = hand;
@@ -126,9 +127,9 @@ namespace InteractionDetection
                     {
                         if (BodyUtils.HasFirstHandTracking(body.Id))
                         {
-                            if (distances[distance.Key] < Thresholds.LastTenFramesHandMaxDistance)
+                            if (distancesToHandAverages[distance.Key] < Thresholds.LastFramesHandMaxDistance)
                             {
-                                Hand hand = new Hand(handCenterPoints[1], 0);
+                                Hand hand = new Hand(handCenterPoints[1], 0, avgFirstHandPoint);
                                 if (newHands[0] == null && !handsUsed[1])
                                 {
                                     newHands[0] = hand;
@@ -138,7 +139,7 @@ namespace InteractionDetection
                         }
                         else
                         {
-                            Hand hand = new Hand(handCenterPoints[1], 0);
+                            Hand hand = new Hand(handCenterPoints[1], 0, avgFirstHandPoint);
                             if (newHands[0] == null && !handsUsed[1])
                             {
                                 newHands[0] = hand;
@@ -150,9 +151,9 @@ namespace InteractionDetection
                     {
                         if (BodyUtils.HasSecondHandTracking(body.Id))
                         {
-                            if (distances[distance.Key] < Thresholds.LastTenFramesHandMaxDistance)
+                            if (distancesToHandAverages[distance.Key] < Thresholds.LastFramesHandMaxDistance)
                             {
-                                Hand hand = new Hand(handCenterPoints[1], 1);
+                                Hand hand = new Hand(handCenterPoints[1], 1, avgSecondHandPoint);
                                 if (newHands[1] == null && !handsUsed[1])
                                 {
                                     newHands[1] = hand;
@@ -162,7 +163,7 @@ namespace InteractionDetection
                         }
                         else
                         {
-                            Hand hand = new Hand(handCenterPoints[1], 1);
+                            Hand hand = new Hand(handCenterPoints[1], 1, avgSecondHandPoint);
                             if (newHands[1] == null && !handsUsed[1])
                             {
                                 newHands[1] = hand;
@@ -172,20 +173,20 @@ namespace InteractionDetection
                     }
                 }
 
-                if (!float.IsNaN(avgFirstHandPoint.Z))
-                {
-                    Graphics.DrawPoint(avgFirstHandPoint);
-                }
-                if (!float.IsNaN(avgSecondHandPoint.Z))
-                {
-                    Graphics.DrawPoint(avgSecondHandPoint);
-                }
+                //if (!float.IsNaN(avgFirstHandPoint.Z) &&
+                //Diagnostics.ShowHandAvgPoint) {
+                //    GraphicsUtils.DrawPoint(avgFirstHandPoint);
+                //}
+                //if (!float.IsNaN(avgSecondHandPoint.Z) && Diagnostics.ShowHandAvgPoint)
+                //{
+                //    GraphicsUtils.DrawPoint(avgSecondHandPoint);
+                //}
             }
             else
             {
                 for (int i = 0; i < handCenterPoints.Count; i++)
                 {
-                    newHands[i] = new Hand(handCenterPoints[i], i);
+                    newHands[i] = new Hand(handCenterPoints[i], i,new CameraSpacePoint(){X = float.NaN,Y = float.NaN,Z = float.NaN});
                 }
             }
 
@@ -205,21 +206,42 @@ namespace InteractionDetection
             // Calculate shortest paths
             var dijkstra = new DijkstraFast(GlobVar.AdjacancyList.Count);
 
-            var results = dijkstra.Perform(head.CenterPointIndex, GlobVar.AdjacancyList);
+            //var v = GlobVar.SubtractedFilteredPointCloud[head.CenterPointIndex];
+
+            int startIndex = head.HighestPointIndex;
+
+            if (!GlobVar.AdjacancyList.ContainsKey(startIndex))
+            {
+                startIndex = GlobUtils.GetClosestValidNeighbourInAdjacencyList(startIndex);
+            }
+
+            if (startIndex == -1)
+            {
+                return;
+            }
+
+            var results = dijkstra.Perform(startIndex, GlobVar.AdjacancyList);
 
             var handPoints = new List<int>();
             var torsoPoints = new List<int>();
             
             foreach (var result in results.MinimumDistance)
             {
+                if (result.Value < 1.1f)
+                {
+                    GlobVar.HeatCanvas[result.Key] = body.Id;
+                }
                 if (result.Value > 0.0f && result.Value < 0.2f)
                 {
                     //GlobVar.Canvas[result.Key] = 255;
 
                 }
-                else if (result.Value < 0.5f && result.Value > 0.2f)
+                else if (result.Value < 0.8f && result.Value > 0.3f)
                 {
-                    //GlobVar.Canvas[result.Key] = 200;
+                    if (Diagnostics.ShowTorso)
+                    {
+                        GlobVar.Canvas[result.Key] = 200;
+                    }
                     torsoPoints.Add(result.Key);
 
                 }
@@ -248,20 +270,24 @@ namespace InteractionDetection
 
         public static Dictionary<int, Dictionary<int, float>> CreateGeodesicGraph(CameraSpacePoint[] pointCloud)
         {
-            Dictionary<int,Dictionary<int,float>> adjacancyList = new Dictionary<int, Dictionary<int, float>>();
+            var adjacancyList = new Dictionary<int, Dictionary<int, float>>();
+
+            var maxDepth = GlobVar.MaxDepthMeter;
 
             for (int i = 0; i < GlobVar.ScaledFrameLength; i++)
             {
-                if (pointCloud[i].Z != GlobVar.MaxDepthMeter)
+                if (pointCloud[i].Z != maxDepth && !float.IsInfinity(pointCloud[i].X) && !float.IsInfinity(pointCloud[i].Y))
                 {
-                    //check if distance to candidate is close enough
-                    List<int> neighbourList = GlobUtils.GetNeighbourIndexList(i);
+                    int[] neighbourList = GlobUtils.GetNeighbourIndexListFast(i);
                     Dictionary<int,float> neighbourNodes = new Dictionary<int, float>();
                     foreach (var neighbour in neighbourList)
                     {
-                        if (pointCloud[neighbour].Z != GlobVar.MaxDepthMeter)
+                        if (pointCloud[neighbour].Z != maxDepth && neighbour != -1)
                         {
                             float dist = GlobUtils.GetEuclideanDistance(neighbour, i);
+
+                            //check if distance to candidate is close enough
+
                             if (dist < Thresholds.GeodesicGraphMaxDistanceBetweenPoints && GlobUtils.DistanceClosestCandidate(neighbour) < Thresholds.GeodesicGraphMaxDistanceToCandidates)
                             {
                                 neighbourNodes.Add(neighbour,dist);   
@@ -285,7 +311,7 @@ namespace InteractionDetection
             List<CameraSpacePoint> handPoints = new List<CameraSpacePoint>();
             for (int i = 0; i < handPointsIndexes.Count; i++)
             {
-                handPoints.Add(GlobVar.MedianFilteredPointCloud[handPointsIndexes[i]]);
+                handPoints.Add(GlobVar.SubtractedFilteredPointCloud[handPointsIndexes[i]]);
             }
 
             DisjointSet3D disjointSetHandPoints = new DisjointSet3D(handPoints);
