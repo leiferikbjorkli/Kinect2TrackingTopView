@@ -1,23 +1,29 @@
 ﻿//
-// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
-// Distributed under the MIT License.
-// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
-//  
+// Written by Leif Erik Bjoerkli
+//
 
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using Microsoft.Kinect;
 
-namespace Kinect2TrackingTopView
+namespace InteractionDetection
 {
-    public class Hand
+    class Hand
     {
-        public int Id { get; private set; }
-        public CameraSpacePoint CenterPoint { get; private set; }
-        public CameraSpacePoint AvgCenterPointLastFrames { get; private set; }
+        public List<CameraSpacePoint> Points { get; set; }
+        public int Id { get; set; }
+        public CameraSpacePoint CenterPoint { get; set; }
+        public CameraSpacePoint AvgCenterPointLastFiveFrames { get; set; }
 
-        public Hand(CameraSpacePoint centerPoint, int id, CameraSpacePoint avgCenterPointLastFrames)
+
+        public Hand(CameraSpacePoint centerPoint, int id, CameraSpacePoint avgCenterPointLastFiveFrames)
         {
             CenterPoint = centerPoint;
-            AvgCenterPointLastFrames = avgCenterPointLastFrames;
+            AvgCenterPointLastFiveFrames = avgCenterPointLastFiveFrames;
             Id = id;
         }
     }

@@ -1,10 +1,16 @@
 ﻿//
-// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
-// Distributed under the MIT License.
-// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
-//  
+// Written by Leif Erik Bjoerkli
+//
 
-namespace Kinect2TrackingTopView
+//
+// Written by Leif Erik Bjoerkli
+//
+
+//
+// Written by Leif Erik Bjoerkli
+//
+
+namespace InteractionDetection
 {
     using System;
     using System.Windows;

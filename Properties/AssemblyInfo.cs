@@ -1,8 +1,14 @@
 ﻿//
-// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
-// Distributed under the MIT License.
-// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
-//  
+// Written by Leif Erik Bjoerkli
+//
+
+//
+// Written by Leif Erik Bjoerkli
+//
+
+//
+// Written by Leif Erik Bjoerkli
+//
 
 using System;
 using System.Reflection;
@@ -13,7 +19,7 @@ using System.Windows;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Kinect2TrackingTopView")]
+[assembly: AssemblyTitle("DepthBasics-WPF")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyTrademark("")]

@@ -1,17 +1,21 @@
 ﻿//
-// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
-// Distributed under the MIT License.
-// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
-//  
+// Written by Leif Erik Bjoerkli
+//
 
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using Microsoft.Kinect;
 
-namespace Kinect2TrackingTopView
+namespace InteractionDetection
 {
-    public class Torso
+    class Torso
     {
-        public CameraSpacePoint CenterPoint { get; private set; }
-        public CameraSpacePoint AvgCenterPoint { get; private set; }
+        public CameraSpacePoint CenterPoint { get; set; }
+        public CameraSpacePoint AvgCenterPoint { get; set; }
 
         public Torso(CameraSpacePoint centerPoint, CameraSpacePoint avgCenterPoint)
         {

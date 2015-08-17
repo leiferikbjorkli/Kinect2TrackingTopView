@@ -1,8 +1,7 @@
 ﻿//
-// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
-// Distributed under the MIT License.
-// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
-//  
+// Written by Leif Erik Bjoerkli
+//
+
 
 using System;
 using System.Collections.Generic;
@@ -11,60 +10,48 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Kinect;
 
-namespace Kinect2TrackingTopView
+namespace InteractionDetection
 {
     static class ClassificationUtils
     {
-        /// <summary>
-        /// Groups points where the distance between them in the euclidean XY-plane is below threshold. The highest point is kept.
-        /// </summary>
-        public static List<int> GroupCandidatesHighestPoints(List<int> highestPointIndexes, float groupingMaxDistance)
+
+        public static int GetHighestPointInSurroundingArea(Point candidate)
         {
-            var groupedPoints = new List<int>();
+            const int searchPixelRange = Thresholds.ClassificationSearchRangeHighestPoint;
 
-            var pointDepths = new Dictionary<int, float>();
-            for (int i = 0; i < highestPointIndexes.Count; i++)
+            int xStartIndex = candidate.x - searchPixelRange;
+            int yStartIndex = candidate.y - searchPixelRange;
+            int xStopIndex = candidate.x + searchPixelRange;
+            int yStopIndex = candidate.y + searchPixelRange;
+
+            int maxPointIndex = GlobUtils.GetIndex(candidate);
+            float maxHeight = GlobVar.SubtractedFilteredPointCloud[maxPointIndex].Z;
+
+            for (int i = yStartIndex; i < yStopIndex; i++)
             {
-                if (!pointDepths.ContainsKey(highestPointIndexes[i]))
+                for (int j = xStartIndex; j < xStopIndex; j++)
                 {
-                    pointDepths.Add(highestPointIndexes[i], GlobVar.SubtractedFilteredPointCloud[highestPointIndexes[i]].Z);
-                }
-            }
-
-            var sortedPointDepths = pointDepths.OrderBy(kvp => kvp.Value);
-
-            foreach (var sortedPointDepth in sortedPointDepths)
-            {
-                int currentIndex = sortedPointDepth.Key;
-                bool add = true;
-
-                foreach (var groupedPoint in groupedPoints)
-                {
-                    if (GlobUtils.GetEuclideanDistanceXYPlane(groupedPoint, currentIndex) < groupingMaxDistance)
+                    int pixelIndex = GlobUtils.GetIndex(j, i);
+                    if (pixelIndex != -1)
                     {
-                        add = false;
+                        float currentHeight = GlobVar.SubtractedFilteredPointCloud[pixelIndex].Z;
+                        if (currentHeight < maxHeight)
+                        {
+                            maxHeight = currentHeight;
+                            maxPointIndex = pixelIndex;
+                        } 
                     }
                 }
-                if (add)
-                {
-                    groupedPoints.Add(sortedPointDepth.Key);
-                }
             }
 
-            return groupedPoints;
+            return maxPointIndex;
         }
 
-        /// <summary>
-        /// Recursively searches for the highest point connected to the startindex. The search stops when the maximum searchdepth is reached.
-        /// </summary>
-        /// <param name="currentIndex"></param>
-        /// <param name="searchDepth"></param>
-        /// <returns></returns>
         public static int GetHighestConnectingPoint(int currentIndex, int searchDepth)
         {
             float currentDepth = GlobVar.SubtractedFilteredPointCloud[currentIndex].Z;
 
-            int[] neighbours = GlobUtils.GetNeighbour5X5IndexList(currentIndex);
+            int[] neighbours = GlobUtils.GetNeighbour5x5IndexList(currentIndex);
 
             int highestNeighbourIndex = currentIndex;
             float shallowestNeighbourDepth = currentDepth;
@@ -92,32 +79,26 @@ namespace Kinect2TrackingTopView
             return GetHighestConnectingPoint(highestNeighbourIndex,searchDepth);
         }
 
-        /// <summary>
-        /// Connected component labeling. Height difference between connected pixels are used as evaluation criteria.
-        /// </summary>
-        /// <param name="startIndex">start index of the labeling</param>
-        /// <param name="maxPixels">maximum amount of pixels allowed in resulting labeled component</param>
-        /// <returns>Returns a list of connected headpoints</returns>
-        public static List<int> ConnectedComponentLabeling(int startIndex,int maxPixels)
+        public static List<int> ConnectedComponentLabelingIterative(int startIndex,int maxPixels)
         {
-            var q = new Queue<int>();
+            var Q = new Queue<int>();
 
-            q.Enqueue(startIndex);
+            Q.Enqueue(startIndex);
 
             List<int> headPixels = new List<int>();
 
             headPixels.Add(startIndex);
-            while (q.Count > 0)
+            while (Q.Count > 0)
             {
                 if (maxPixels<1)
                 {
                     break;
                 }
-                int currentIndex = q.Dequeue();
+                int currentIndex = Q.Dequeue();
 
                 CameraSpacePoint currentPoint = GlobVar.SubtractedFilteredPointCloud[currentIndex];
 
-                int[] neighbours = GlobUtils.GetNeighbour3X3IndexList(currentIndex);
+                int[] neighbours = GlobUtils.GetNeighbourIndexListFast(currentIndex);
 
                 for (int i = 0; i < neighbours.Length; i++)
                 {
@@ -128,10 +109,12 @@ namespace Kinect2TrackingTopView
                     }
                     CameraSpacePoint neighbourPoint = GlobVar.SubtractedFilteredPointCloud[neighbourIndex];
 
+                    //var v = GlobUtils.GetHeightDifference(currentPoint, neighbourPoint);
+
                     if (!headPixels.Contains(neighbourIndex) &&
                         Thresholds.ClassificationLabelingMaxDistanceBetweenPoints > GlobUtils.GetHeightDifference(currentPoint,neighbourPoint))
                     {
-                        q.Enqueue(neighbourIndex);
+                        Q.Enqueue(neighbourIndex);
                         headPixels.Add(neighbourIndex);
                         maxPixels--;
                     }
@@ -139,6 +122,8 @@ namespace Kinect2TrackingTopView
                 
             }
             return headPixels;
+            
         }
+        
     }
 }

@@ -1,29 +1,48 @@
 ﻿//
-// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
-// Distributed under the MIT License.
-// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
-//  
-namespace Kinect2TrackingTopView
+// Written by Leif Erik Bjoerkli
+//
+
+
+namespace InteractionDetection
 {
+    public struct ThreePointRectangle
+    {
+        public ThreePointRectangle(Point a, Point b, Point c)
+        {
+            this.a = a;
+            this.b = b;
+            this.c = c;
+            this.CenterPoint = new Point(0,0);
+        }
+        public ThreePointRectangle(Point a, Point b, Point c,Point CenterPoint)
+        {
+            this.a = a;
+            this.b = b;
+            this.c = c;
+            this.CenterPoint = CenterPoint;
+        }
+        public Point a, b, c,CenterPoint;
+    }
     public struct Point
     {
         public Point(int x, int y)
         {
-            X = x;
-            Y = y;
+            this.x = x;
+            this.y = y;
         }
-        public int X, Y;
+        public int x, y;
     }
+
     public struct IndexRectangle
     {
         public IndexRectangle(int a, int b, int c)
         {
-            A = a;
-            B = b;
-            C = c;
+            this.a = a;
+            this.b = b;
+            this.c = c;
         }
 
-        public int A, B, C;
+        public int a, b, c;
     }
 
    

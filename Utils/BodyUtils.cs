@@ -1,8 +1,7 @@
 ﻿//
-// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
-// Distributed under the MIT License.
-// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
-//  
+// Written by Leif Erik Bjoerkli
+//
+
 
 using System;
 using System.Collections.Generic;
@@ -12,31 +11,25 @@ using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Kinect;
 
-namespace Kinect2TrackingTopView
+namespace InteractionDetection
 {
     static class BodyUtils
     {
-
-        // Number of frames to consider when calculating average values.
         private const int NumberOfLastFrames = 5;
-
         private const int NumberOfTrackedFrames = 10;
         private const int NumberOfTrackedFramesStartIndex = NumberOfTrackedFrames - NumberOfLastFrames;
 
-        /// <summary>
-        /// Calculates the average point in camera space from the input points. Invalid pixels are discarded.
-        /// </summary>
-        public static CameraSpacePoint CalculateAveragePointFromValidPoints(List<int> pointIndexes)
+        public static int CalculateCenterPointHeadPoints(List<int> headPixels )
         {
-            var points = new List<CameraSpacePoint>();
+            List<CameraSpacePoint> headPoints = new List<CameraSpacePoint>();
 
-            for (var i = 0; i < pointIndexes.Count; i++)
+            for (int i = 0; i < headPixels.Count; i++)
             {
-                CameraSpacePoint rawPoint = GlobVar.SubtractedFilteredPointCloud[pointIndexes[i]];
+                CameraSpacePoint rawPoint = GlobVar.SubtractedFilteredPointCloud[headPixels[i]];
 
-                if (rawPoint.Z != GlobVar.MaxSensingDepth)
+                if (rawPoint.Z != GlobVar.MaxDepthMeter)
                 {
-                    points.Add(rawPoint);
+                    headPoints.Add(rawPoint);
                 }
             }
 
@@ -44,12 +37,56 @@ namespace Kinect2TrackingTopView
             float y = 0;
             float z = 0;
 
-            var xValuesCount = 0;
-            var yValuesCount = 0;
-
-            for (var i = 0; i < points.Count; i++)
+            for (int i = 0; i < headPoints.Count; i++)
             {
-                var point = points[i];
+                x += headPoints[i].X;
+                y += headPoints[i].Y;
+                z += headPoints[i].Z;
+            }
+
+            x = x / headPoints.Count;
+            y = y / headPoints.Count;
+            z = z / headPoints.Count;
+
+
+            var p = new CameraSpacePoint
+            {
+                X = x,
+                Y = y,
+                Z = z
+            };
+
+
+            int xPixelCoordinateOfPoint = (int)Math.Round(((p.X * 1000) / GlobVar.HalfMaxHorizontalWidth) * (GlobVar.ScaledFrameWidth / 2) + (GlobVar.ScaledFrameWidth / 2));
+            int yPixelCoordinateOfPoint = (int)Math.Round(((-p.Y * 1000) / GlobVar.HalfMaxVerticalHeight) * (GlobVar.ScaledFrameHeight / 2) + (GlobVar.ScaledFrameHeight / 2));
+
+            return GlobUtils.GetIndex(xPixelCoordinateOfPoint, yPixelCoordinateOfPoint);
+        }
+
+        public static CameraSpacePoint CalculateCenterPointFromValidPoints(List<int> headPixels)
+        {
+            List<CameraSpacePoint> headPoints = new List<CameraSpacePoint>();
+
+            for (int i = 0; i < headPixels.Count; i++)
+            {
+                CameraSpacePoint rawPoint = GlobVar.SubtractedFilteredPointCloud[headPixels[i]];
+
+                if (rawPoint.Z != GlobVar.MaxDepthMeter)
+                {
+                    headPoints.Add(rawPoint);
+                }
+            }
+
+            float x = 0;
+            float y = 0;
+            float z = 0;
+
+            int xValuesCount = 0;
+            int yValuesCount = 0;
+
+            for (int i = 0; i < headPoints.Count; i++)
+            {
+                var point = headPoints[i];
                 if (!float.IsInfinity(point.X))
                 {
                     x += point.X;
@@ -60,12 +97,12 @@ namespace Kinect2TrackingTopView
                     y += point.Y;
                     yValuesCount++;
                 }
-                z += points[i].Z;
+                z += headPoints[i].Z;
             }
 
             x = x / xValuesCount;
             y = y / yValuesCount;
-            z = z / points.Count;
+            z = z / headPoints.Count;
 
             var p = new CameraSpacePoint
             {
@@ -77,152 +114,73 @@ namespace Kinect2TrackingTopView
             return p;
         }
 
-        ///  <summary>
-        ///     Uses Dijkstra to find the shortest geodesic path from the top of the head to the rest of the body. The body parts
-        ///     torso and hands are classified as the points from the geodesic map that fall into bins with a certain distance from
-        ///     the top of the head.
-        /// </summary>
-        /// <returns>Returns a dictionary with the heads as keys and labels as values. If head isn't identified, the label is -1</returns>
-        public static void AddBodyRegions(Dictionary<int, Dictionary<int, float>> geodesicGraph, Head head, Body body)
+        public static void InitializeBodyHistory()
         {
-            var startIndex = head.HighestPointIndex;
-
-            if (!geodesicGraph.ContainsKey(startIndex))
+            for (int i = 0; i < 10; i++)
             {
-                startIndex = GeodesicUtils.GetClosestValidNeighbourInGeodesicGraph(startIndex);
-            }
-
-            if (startIndex == -1)
-            {
-                return;
-            }
-
-            var minDistances = Dijkstra.Perform(startIndex, geodesicGraph);
-
-            var handPoints = new List<int>();
-            var torsoPoints = new List<int>();
-
-            foreach (var minDistance in minDistances)
-            {
-                if (minDistance.Value < 1.1f)
-                {
-                    // Include body in current heatcanvas
-                    GlobVar.HeatCanvas[minDistance.Key] = body.Id;
-                }
-                if (minDistance.Value < 0.8f && minDistance.Value > 0.3f)
-                {
-                    if (Debugger.ShowTorso)
-                    {
-                        GlobVar.GraphicsCanvas[minDistance.Key] = 200;
-                    }
-                    torsoPoints.Add(minDistance.Key);
-                }
-                else if (minDistance.Value < 1.1f && minDistance.Value > 0.9f)
-                {
-                    if (Debugger.ShowHandPixels)
-                    {
-                        GlobVar.GraphicsCanvas[minDistance.Key] = 150;
-                    }
-                    handPoints.Add(minDistance.Key);
-                }
-            }
-
-            if (torsoPoints.Count > Thresholds.TorsoPointMinCount)
-            {
-                body.AddTorso(torsoPoints);
-            }
-
-            if (handPoints.Count > Thresholds.HandPointMinCount)
-            {
-                body.AddHands(handPoints);
+                List<Body> emptyBodies = new List<Body>();
+                GlobVar.BodiesHistory.Enqueue(emptyBodies);
             }
         }
 
-        /// <summary>
-        /// Groups the hand points if closer than threshold.
-        /// </summary>
-        public static List<CameraSpacePoint> GroupHandPoints(List<int> handPointsIndexes)
+        public static void UpdateBodyHistory(List<Body> newBodies)
         {
-            List<CameraSpacePoint> handPoints = new List<CameraSpacePoint>();
-            for (int i = 0; i < handPointsIndexes.Count; i++)
+            if (newBodies.Count > 0)
             {
-                handPoints.Add(GlobVar.SubtractedFilteredPointCloud[handPointsIndexes[i]]);
+                GlobVar.BodiesHistory.Enqueue(newBodies);
             }
-
-            DisjointSet3D disjointSetHandPoints = new DisjointSet3D(handPoints);
-            for (int i = 0; i < handPoints.Count; i++)
+            if (GlobVar.BodiesHistory.Count > 10)
             {
-                for (int j = 0; j < handPoints.Count; j++)
-                {
-                    if (i == j) { continue; };
-                    if (GlobUtils.GetEuclideanDistance(handPoints[i], handPoints[j]) < Thresholds.HandPointGroupingMaxDistance)
-                    {
-                        disjointSetHandPoints.Union(i, j);
-                    }
-                }
+                GlobVar.BodiesHistory.Dequeue();
             }
-
-            List<CameraSpacePoint> handCenterPoints = FilterHandCandidates(disjointSetHandPoints);
-
-            return handCenterPoints;
-
         }
 
-        /// <summary>
-        /// Filters the hand candidate points. Only the two candidate points belonging to the two biggest sets are kept.
-        /// </summary>
-        private static List<CameraSpacePoint> FilterHandCandidates(DisjointSet3D groupedSet)
-        {
-            Dictionary<int, int> filteredCandidatesIndex = new Dictionary<int, int>();
-
-            for (int i = 0; i < groupedSet.Count; i++)
-            {
-                int setRepresentative = groupedSet.Find(i);
-                int setSize = groupedSet.SetSize(setRepresentative);
-                if (!filteredCandidatesIndex.ContainsKey(setRepresentative) && setSize > Thresholds.HandPointMinCount)
-                {
-                    filteredCandidatesIndex.Add(setRepresentative, setSize);
-                }
-            }
-
-            var sortedFilteredCandidatesIndex = filteredCandidatesIndex.OrderByDescending(kvp => kvp.Value);
-
-            var filteredTopCandidates = new List<CameraSpacePoint>();
-
-            int counter = 0;
-            foreach (var filteredCandidate in sortedFilteredCandidatesIndex)
-            {
-                var cp = new CameraSpacePoint
-                {
-                    X = groupedSet.AverageX[filteredCandidate.Key],
-                    Y = groupedSet.AverageY[filteredCandidate.Key],
-                    Z = groupedSet.AverageZ[filteredCandidate.Key]
-                };
-                filteredTopCandidates.Add(cp);
-
-                counter++;
-                if (counter == 2)
-                {
-                    break;
-                }
-            }
-
-            return filteredTopCandidates;
-        }
-
-        /// <summary>
-        /// Find id of new heads based on euclidean distance to heads detected in previous frame.
-        /// </summary>
-        /// <returns>Returns a dictionary with the heads as keys and labels as values. If head isn't identified, the label is -1</returns>
         public static Dictionary<Head,int> IdentifyHeads(List<Head> validatedCandidateHeads)
         {
-            var identifiedHeads = new Dictionary<Head, int>();
+            Dictionary<Head,int> identifiedHeads = new Dictionary<Head, int>();
 
-            var recentBodyIds = GetRecentBodyIds();
+            List<int> recentBodyIds = new List<int>();
+            for (int i = GlobVar.BodiesHistory.Count - 1; i >= NumberOfTrackedFramesStartIndex; i--)
+            {
+                foreach (var body in GlobVar.BodiesHistory.ElementAt(i))
+                {
+                    if (!recentBodyIds.Contains(body.Id))
+                    {
+                        recentBodyIds.Add(body.Id);
+                    }
+                }
+            }
 
-            var avgLocationsLastHeads = GetAvgLocationsLastHeadsFromIds(recentBodyIds);
+            var avgLocationsLastHeads = new Dictionary<int, CameraSpacePoint>();
 
-            var avgDistancesFromCandidateHeadsToLastHeads = GetAvgDistancesFromCandidateHeadsToLastHeads(validatedCandidateHeads, avgLocationsLastHeads);
+            foreach (var bodyId in recentBodyIds)
+            {
+                avgLocationsLastHeads.Add(bodyId,GetAverageHeadLocationLastTenFrames(bodyId));
+                if (Diagnostics.ShowHeadAvgCenterLastTenFrames)
+                {
+                    if (!float.IsNaN(GetAverageHeadLocationLastTenFrames(bodyId).Z))
+                    {
+                        GraphicsUtils.DrawPoint(GetAverageHeadLocationLastTenFrames(bodyId));
+                    }
+                }
+            }
+
+            var avgDistancesFromCandidateHeadsToLastHeads = new Dictionary<Tuple<Head, int>, float>();
+            
+            foreach (var candidateHead in validatedCandidateHeads)
+            {
+                foreach (var avgLocationLastHead in avgLocationsLastHeads)
+                {
+                    var assignment = new Tuple<Head, int>(candidateHead,avgLocationLastHead.Key);
+                    var distanceToCandidate = GlobUtils.GetEuclideanDistance(candidateHead.CenterPoint,
+                        avgLocationLastHead.Value);
+
+                    if (distanceToCandidate < Thresholds.LastFramesHeadMaxDistance)
+                    {
+                        avgDistancesFromCandidateHeadsToLastHeads.Add(assignment,distanceToCandidate);
+                    }
+                }
+            }
 
             var sortedDistances = avgDistancesFromCandidateHeadsToLastHeads.OrderBy(i => i.Value);
 
@@ -248,81 +206,38 @@ namespace Kinect2TrackingTopView
             return identifiedHeads;
         }
 
-        private static Dictionary<Tuple<Head, int>, float> GetAvgDistancesFromCandidateHeadsToLastHeads(List<Head> validatedCandidateHeads,
-            Dictionary<int, CameraSpacePoint> avgLocationsLastHeads)
-        {
-            var avgDistancesFromCandidateHeadsToLastHeads = new Dictionary<Tuple<Head, int>, float>();
+        //public static int GetBodyIdFromHead(Head head) {
+        //    float minDistanceHeads = float.MaxValue;
+        //    int bodyId = -1;
 
-            foreach (var candidateHead in validatedCandidateHeads)
-            {
-                foreach (var avgLocationLastHead in avgLocationsLastHeads)
-                {
-                    var assignment = new Tuple<Head, int>(candidateHead, avgLocationLastHead.Key);
-                    var distanceToCandidate = GlobUtils.GetEuclideanDistance(candidateHead.CenterPoint,
-                        avgLocationLastHead.Value);
+        //    foreach (var bodies in GlobVar.BodiesHistory)
+        //    {
+        //        foreach (var body in bodies)
+        //        {
+        //            int currentBodyId = body.Id;
 
-                    if (distanceToCandidate < Thresholds.LastFramesHeadMaxDistance)
-                    {
-                        avgDistancesFromCandidateHeadsToLastHeads.Add(assignment, distanceToCandidate);
-                    }
-                }
-            }
-            return avgDistancesFromCandidateHeadsToLastHeads;
-        }
+        //            CameraSpacePoint avgHeadPoint = GetAverageHeadLocationLastTenFrames(currentBodyId);
 
-        private static Dictionary<int, CameraSpacePoint> GetAvgLocationsLastHeadsFromIds(List<int> recentBodyIds)
-        {
-            var avgLocationsLastHeads = new Dictionary<int, CameraSpacePoint>();
+        //            if (Diagnostics.ShowHeadAvgCenterPoint)
+        //            {
+        //                GraphicsUtils.DrawPoint(avgHeadPoint);
+        //            }
 
-            foreach (var bodyId in recentBodyIds)
-            {
-                avgLocationsLastHeads.Add(bodyId, GetAverageHeadLocationLastTenFrames(bodyId));
-                if (Debugger.ShowHeadAvgCenterLastTenFrames)
-                {
-                    if (!float.IsNaN(GetAverageHeadLocationLastTenFrames(bodyId).Z))
-                    {
-                        GraphicsUtils.DrawPoint(GetAverageHeadLocationLastTenFrames(bodyId));
-                    }
-                }
-            }
-            return avgLocationsLastHeads;
-        }
+        //            float currentDistanceHeads = GlobUtils.GetEuclideanDistance(avgHeadPoint, head.CenterPoint);
 
-        public static Dictionary<int, float> GetDistancesToHandAveragesLastFrames(List<CameraSpacePoint> handCenterPoints, CameraSpacePoint avgFirstHandPoint,
-            CameraSpacePoint avgSecondHandPoint)
-        {
-            Dictionary<int, float> distancesToHandAverages = new Dictionary<int, float>();
+        //            Console.WriteLine(currentDistanceHeads);
+        //            if (currentDistanceHeads < minDistanceHeads && currentDistanceHeads < Thresholds.LastFramesHeadMaxDistance)
+        //            {
+        //                minDistanceHeads = currentDistanceHeads;
+        //                bodyId = currentBodyId;
+        //            }
+        //        }
+        //    }
 
-            int index = 0;
-            foreach (var handCenterPoint in handCenterPoints)
-            {
-                float distToFirstHandAverage = GlobUtils.GetEuclideanDistance(avgFirstHandPoint, handCenterPoint);
-                distancesToHandAverages.Add(index, distToFirstHandAverage);
-                index++;
-                float distToSecondHandAverage = GlobUtils.GetEuclideanDistance(avgSecondHandPoint, handCenterPoint);
-                distancesToHandAverages.Add(index, distToSecondHandAverage);
-                index++;
-            }
-            return distancesToHandAverages;
-        }
+        //    return bodyId;
+        //}
 
-        private static List<int> GetRecentBodyIds()
-        {
-            List<int> recentBodyIds = new List<int>();
-            for (int i = BodiesHistory.Get.Count - 1; i >= NumberOfTrackedFramesStartIndex; i--)
-            {
-                foreach (var body in BodiesHistory.Get.ElementAt(i))
-                {
-                    if (!recentBodyIds.Contains(body.Id))
-                    {
-                        recentBodyIds.Add(body.Id);
-                    }
-                }
-            }
-            return recentBodyIds;
-        }
-
-        private static CameraSpacePoint GetAverageHeadLocationLastTenFrames(int newBodyId)
+        public static CameraSpacePoint GetAverageHeadLocationLastTenFrames(int newBodyId)
         {
             float sumX = 0;
             float sumY = 0;
@@ -330,9 +245,9 @@ namespace Kinect2TrackingTopView
 
             float bodiesCount = 0;
 
-            for (int i = 0; i < BodiesHistory.Get.Count; i++)
+            for (int i = 0; i < GlobVar.BodiesHistory.Count; i++)
             {
-                var bodies = BodiesHistory.Get.ElementAt(i);
+                var bodies = GlobVar.BodiesHistory.ElementAt(i);
                 for (int j = 0; j < bodies.Count; j++)
                 {
                     var body = bodies[j];
@@ -354,9 +269,6 @@ namespace Kinect2TrackingTopView
             };
         }
 
-        ///<remarks>
-        /// Only returns a valid average point if tracking is complete for the specified last frames.
-        /// </remarks>
         public static CameraSpacePoint GetAverageHeadLocationLastFrames(int newBodyId)
         {
             float sumX = 0;
@@ -365,9 +277,9 @@ namespace Kinect2TrackingTopView
 
             float bodiesCount = 0;
 
-            for (int i = NumberOfTrackedFramesStartIndex; i < BodiesHistory.Get.Count; i++)
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
-                var bodies = BodiesHistory.Get.ElementAt(i);
+                var bodies = GlobVar.BodiesHistory.ElementAt(i);
                 for (int j = 0; j < bodies.Count; j++)
                 {
                     var body = bodies[j];
@@ -398,9 +310,6 @@ namespace Kinect2TrackingTopView
             };
         }
 
-        ///<remarks>
-        /// Only returns a valid average point if tracking is complete for the specified last frames.
-        /// </remarks>
         public static CameraSpacePoint GetAverageTorsoLocationLastFrames(int newBodyId)
         {
             float sumX = 0;
@@ -409,9 +318,9 @@ namespace Kinect2TrackingTopView
 
             int bodiesCount = 0;
 
-            for (int i = NumberOfTrackedFramesStartIndex; i < BodiesHistory.Get.Count; i++)
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
-                var bodies = BodiesHistory.Get.ElementAt(i);
+                var bodies = GlobVar.BodiesHistory.ElementAt(i);
                 for (int j = 0; j < bodies.Count; j++)
                 {
                     var body = bodies[j];
@@ -426,6 +335,7 @@ namespace Kinect2TrackingTopView
                 }
             }
 
+            //Console.WriteLine(bodiesCount);
             if (bodiesCount == NumberOfLastFrames)
             {
                 return new CameraSpacePoint
@@ -457,9 +367,9 @@ namespace Kinect2TrackingTopView
             float secondHandCount = 0;
 
 
-            for (int i = NumberOfTrackedFramesStartIndex; i < BodiesHistory.Get.Count; i++)
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
-                var bodies = BodiesHistory.Get.ElementAt(i);
+                var bodies = GlobVar.BodiesHistory.ElementAt(i);
                 for (int j = 0; j < bodies.Count; j++)
                 {
                     var body = bodies[j];
@@ -511,9 +421,9 @@ namespace Kinect2TrackingTopView
         public static bool HasFirstHandTracking(int bodyId)
         {
             int trackedHands = 0;
-            for (int i = NumberOfTrackedFramesStartIndex; i < BodiesHistory.Get.Count; i++)
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
-                foreach (var body in BodiesHistory.Get.ElementAt(i))
+                foreach (var body in GlobVar.BodiesHistory.ElementAt(i))
                 {
                     if (body.Id == bodyId && body.Hands[0] != null)
                     {
@@ -528,9 +438,9 @@ namespace Kinect2TrackingTopView
         public static bool HasSecondHandTracking(int bodyId)
         {
             int trackedHands = 0;
-            for (int i = NumberOfTrackedFramesStartIndex; i < BodiesHistory.Get.Count; i++)
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
-                foreach (var body in BodiesHistory.Get.ElementAt(i))
+                foreach (var body in GlobVar.BodiesHistory.ElementAt(i))
                 {
                     if (body.Id == bodyId && body.Hands[1] != null)
                     {
@@ -545,9 +455,9 @@ namespace Kinect2TrackingTopView
         public static bool HasTorsoTracking(int bodyId)
         {
             int trackedTorsos = 0;
-            for (int i = NumberOfTrackedFramesStartIndex; i < BodiesHistory.Get.Count; i++)
+            for (int i = NumberOfTrackedFramesStartIndex; i < GlobVar.BodiesHistory.Count; i++)
             {
-                foreach (var body in BodiesHistory.Get.ElementAt(i))
+                foreach (var body in GlobVar.BodiesHistory.ElementAt(i))
                 {
                     if (body.Id == bodyId && body.Torso != null)
                     {
@@ -561,19 +471,16 @@ namespace Kinect2TrackingTopView
 
         public static bool HasBodyTracking()
         {
-            return BodiesHistory.Get.Count > 0;
+            return GlobVar.BodiesHistory.Count > 0;
         }
 
-        /// <summary>
-        /// Returns the bodies from history that has the specified id.
-        /// </summary>
-        public static List<Body> GetBodiesWithIdFromHistory(int bodyId)
+        public static List<Body> GetBodiesFromHistory(int bodyId)
         {
             List<Body> bodiesWithId = new List<Body>();
 
-            for (int i = 7; i < BodiesHistory.Get.Count-1; i++)
+            for (int i = 7; i < GlobVar.BodiesHistory.Count-1; i++)
             {
-                foreach (var body in BodiesHistory.Get.ElementAt(i))
+                foreach (var body in GlobVar.BodiesHistory.ElementAt(i))
                 {
                     if (body.Id == bodyId)
                     {
@@ -582,24 +489,27 @@ namespace Kinect2TrackingTopView
                 }
             }
 
+            if (bodiesWithId.Count > 0)
+            {
+                
+            }
+
             return bodiesWithId;
+
         }
 
-        public static float GetDistanceToClosestHeadCandidate(int indexPoint)
+        public static double GetTimeSpanLastTenFrames()
         {
-            float minDistance = float.MaxValue;
-
-            foreach (var head in GlobVar.ValidatedCandidateHeads)
+            if (GlobVar.BodiesHistory.Count < 2)
             {
-                var headIndex = head.HighestPointIndex;
-                float currentDistance = GlobUtils.GetEuclideanDistance(headIndex, indexPoint);
-
-                if (currentDistance < minDistance)
-                {
-                    minDistance = currentDistance;
-                }
+                return -1;
             }
-            return minDistance;
+
+            TimeSpan timeStampStart = GlobVar.BodiesHistory.ElementAt(0)[0].TimeStamp;
+            TimeSpan timeStampStop = GlobVar.BodiesHistory.ElementAt(GlobVar.BodiesHistory.Count - 1)[0].TimeStamp;
+
+            double deltaTime = timeStampStop.Subtract(timeStampStart).TotalSeconds;
+            return deltaTime;
         }
 
     }

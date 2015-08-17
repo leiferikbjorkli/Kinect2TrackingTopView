@@ -1,63 +1,89 @@
 ﻿//
-// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
-// Distributed under the MIT License.
-// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
+// Written by Leif Erik Bjoerkli
 //
+
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Kinect;
 
-namespace Kinect2TrackingTopView
+namespace InteractionDetection
 {
-    /// <summary>
-    /// Class that contain validators used to validate candidate heads blobs.
-    /// </summary>
-    static class Validators
+    class Validators
     {
-        /// <summary>
-        /// Calculates the accumulated difference in depths from the current frame and the previous for certain indexes.
-        /// </summary>
-        /// <remarks>
-        /// NOT USED
-        /// </remarks>
-        public static bool EvaluateMovementInFrame(List<int> headPointIndexes, float minDifferencePreviousFrame)
+
+        // If shape is circular
+
+        public static List<int> GroupCandidateHighestPoints(List<int> highestPointIndexes, float groupingMaxDistance)
+        {
+            List<int> groupedPoints = new List<int>();
+
+            Dictionary<int,float> pointDepth = new Dictionary<int, float>();
+            for (int i = 0; i < highestPointIndexes.Count; i++)
+            {
+                if (!pointDepth.ContainsKey(highestPointIndexes[i]))
+                {
+                    pointDepth.Add(highestPointIndexes[i],GlobVar.SubtractedFilteredPointCloud[highestPointIndexes[i]].Z);
+                }
+            }
+
+            var sortedPointDepth = pointDepth.OrderBy(kvp => kvp.Value);
+
+            foreach (var sortedPoint in sortedPointDepth)
+            {
+                int currentIndex = sortedPoint.Key;
+                bool add = true;
+                
+                foreach (var groupedPoint in groupedPoints)
+                {
+                    if (GlobUtils.GetEuclideanDistanceXYPlane(groupedPoint,currentIndex) < groupingMaxDistance)
+                    {
+                        add = false;
+                    }
+                }
+                if (add)
+                {
+                    groupedPoints.Add(sortedPoint.Key);
+                }
+            }
+
+            return groupedPoints;
+        }
+
+        public static bool MovementInFrame(List<int> headPointIndexes)
         {
             float differenceFromPreviousFrame = 0;
 
             for (int i = 0; i < headPointIndexes.Count; i++)
             {
+                //Console.WriteLine(GlobVar.PreviousFrame[i].Z);
+                //Console.WriteLine(GlobVar.SubtractedFilteredPointCloud[i].Z);
+
                 differenceFromPreviousFrame +=
                     Math.Abs(GlobVar.PreviousFrame[headPointIndexes[i]].Z - GlobVar.SubtractedFilteredPointCloud[headPointIndexes[i]].Z);
+
             }
 
-            return differenceFromPreviousFrame >= minDifferencePreviousFrame;
+            return differenceFromPreviousFrame >= Thresholds.ValidatorsMinDifferencePreviousFrame;
         }
 
-        /// <summary>
-        /// Evaluates the size of the candidate head region against thresholds for maximum and minimum size.
-        /// </summary>
-        public static bool EvaluateSizeOfHeadRegion(List<int> headPointIndexes )
+        // Evaluate size compared to height
+        public static bool SizeOfHead(List<int> headPointIndexes )
         {
             int count = headPointIndexes.Count;
+            //Console.WriteLine(count);
             return count > Thresholds.ValidatorsHeadPointMinCount && count < Thresholds.ValidatorsHeadPointMaxCount;
         }
 
-        /// <summary>
-        /// Evaluates the difference between input head region and a average head spherical shape.
-        /// </summary>
-        /// /// <remarks>
-        /// NOT USED
-        /// </remarks>
-        public static bool IsSphericalShape(List<int> headPointIndexes, int highestPointIndex, double headSphereMaxError)
+        public static bool IsSphericalShape(List<int> headPointIndexes,int highestPointIndex)
         {
-            const float radiusHumanHead = GlobVar.RadiusHumanHead;
-            const float maxDepth = GlobVar.MaxSensingDepth;
+            var radiusHumanHead = GlobVar.RadiusHumanHead;
+            var maxDepth = GlobVar.MaxDepthMeter;
 
             CameraSpacePoint highestPoint = GlobVar.SubtractedFilteredPointCloud[highestPointIndex];
 
-            var headCenter = new CameraSpacePoint()
+            CameraSpacePoint headCenter = new CameraSpacePoint()
             {
                 X = highestPoint.X,
                 Y = highestPoint.Y,
@@ -84,8 +110,13 @@ namespace Kinect2TrackingTopView
             }
             double meanError = totalError / validPixelCount;
 
-            return meanError < headSphereMaxError;
+            //Console.WriteLine(meanError);
+
+            return meanError < Thresholds.ValidatorsHeadSphereMaxError;
         }
+
+        // Create method to check if hypothetical volume of head would be
+        // correct
 
     }
 }

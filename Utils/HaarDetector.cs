@@ -1,8 +1,8 @@
 ﻿//
-// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
-// Distributed under the MIT License.
-// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
-//  
+// Written by Leif Erik Bjoerkli
+//
+
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,66 +11,131 @@ using System.Threading.Tasks;
 using Microsoft.Kinect;
 using System.Diagnostics;
 
-namespace Kinect2TrackingTopView
+namespace InteractionDetection
 {
-    class HaarDetector
+    static class HaarDetector
     {
-        private readonly float[] _integralImage;
-
-        public HaarDetector(CameraSpacePoint[] cameraSpacePoints)
+        public static List<int> CreateRegions(CameraSpacePoint[] cameraSpacePoints)
         {
-            _integralImage = CreateIntegralImage(cameraSpacePoints);
+            Stopwatch stopwatch = new Stopwatch();
+
+            float[] integralImage = CreateStraightIntegralImage(cameraSpacePoints);
+
+            var candidates = new List<int>();
+
+            stopwatch.Restart();
+
+            candidates.AddRange(SlideWindow(integralImage,GlobVar.HaarOuterWindowSize,GlobVar.HaarInnerWindowSize,5f,Thresholds.HaarDifferenceBetweenInnerAndOuterRectangle));
+
+            DisjointSet disjointSet = GroupPoints3D(candidates);
+
+            List<int> filteredCandidates = FilterPoints3D(disjointSet);
+            
+            return filteredCandidates;
         }
 
-        private static float[] CreateIntegralImage(CameraSpacePoint[] cameraSpacePoints) 
-        {
-            float[] integralImage = new float[GlobVar.ScaledFrameLength];
-            for (var i = 0; i < GlobVar.ScaledFrameHeight; i++)
-            {
-                for (var j = 0; j < GlobVar.ScaledFrameWidth; j++)
-                {
-                    int indexCurrent = i * GlobVar.ScaledFrameWidth + j;
-                    int indexUpLeft = (i - 1) * GlobVar.ScaledFrameWidth + j - 1;
-                    int indexUp = (i - 1) * GlobVar.ScaledFrameWidth + j;
-                    int indexLeft = i * GlobVar.ScaledFrameWidth + j - 1;
 
-                    if (i==0 && j==0)
+        private static List<Point> SlideTripleWindow(float[] integralImage, int outerWindowSize, int innerWindowWidth, int smallestWindowSize, float maxThreshold, float minThreshold, float maxThreshold2, float minThreshold2)
+        {
+            int smallestWindowMargin = (innerWindowWidth - smallestWindowSize) / 2;
+
+            List<Point> candidates = new List<Point>();
+
+            int marginInnerWindow = (outerWindowSize - innerWindowWidth) / 2;
+            int innerWindowArea = innerWindowWidth * innerWindowWidth;
+            int smallestWindowArea = smallestWindowSize * smallestWindowSize;
+
+            for (int i = 0; i < GlobVar.ScaledFrameHeight - innerWindowWidth; i += 2)
+            {
+                for (int j = 0; j < GlobVar.ScaledFrameWidth - innerWindowWidth; j += 2)
+                {
+                    int outerWindowHeight = outerWindowSize;
+                    int outerWindowWidth = outerWindowSize;
+
+                    int iOuter = i - marginInnerWindow;
+                    int jOuter = j - marginInnerWindow;
+
+                    if (iOuter < 0)
                     {
-                        integralImage[indexCurrent] = cameraSpacePoints[indexCurrent].Z;
+                        outerWindowHeight += iOuter;
+                        iOuter = 0;
                     }
-                    else if (i==0)
+                    if (jOuter < 0)
                     {
-                        integralImage[indexCurrent] = cameraSpacePoints[indexCurrent].Z + integralImage[indexLeft];
+                        outerWindowWidth += jOuter;
+                        jOuter = 0;
                     }
-                    else if (j == 0)
+                    if (iOuter + outerWindowSize > GlobVar.ScaledFrameHeight - 1)
                     {
-                        integralImage[indexCurrent] = cameraSpacePoints[indexCurrent].Z + integralImage[indexUp];
+                        outerWindowHeight += iOuter + outerWindowSize - GlobVar.ScaledFrameHeight - 1;
+                        iOuter = GlobVar.ScaledFrameHeight - 1 - outerWindowHeight;
                     }
-                    else 
+                    if (jOuter + outerWindowSize > GlobVar.ScaledFrameWidth - 1)
                     {
-                        integralImage[indexCurrent] = cameraSpacePoints[indexCurrent].Z + integralImage[indexUp] + integralImage[indexLeft] - integralImage[indexUpLeft];
+                        outerWindowWidth += jOuter + outerWindowSize - GlobVar.ScaledFrameWidth - 1;
+                        jOuter = GlobVar.ScaledFrameWidth - 1 - outerWindowWidth;
+                    }
+
+                    int innerIndexA = GlobUtils.GetIndex(j, i);
+                    int innerIndexB = GlobUtils.GetIndex(j + innerWindowWidth, i);
+                    int innerIndexC = GlobUtils.GetIndex(j, i + innerWindowWidth);
+                    int innerIndexD = GlobUtils.GetIndex(j + innerWindowWidth, i + innerWindowWidth);
+
+                    int outerIndexA = GlobUtils.GetIndex(jOuter, iOuter);
+                    int outerIndexB = GlobUtils.GetIndex(jOuter + outerWindowWidth, iOuter);
+                    int outerIndexC = GlobUtils.GetIndex(jOuter, iOuter + outerWindowHeight);
+                    int outerIndexD = GlobUtils.GetIndex(jOuter + outerWindowWidth, iOuter + outerWindowHeight);
+
+                    int smallestIndexA = GlobUtils.GetIndex(j + smallestWindowMargin, i + smallestWindowMargin);
+                    int smallestIndexB = GlobUtils.GetIndex(j + innerWindowWidth - smallestWindowMargin, i + smallestWindowMargin);
+                    int smallestIndexC = GlobUtils.GetIndex(j + smallestWindowMargin, i + innerWindowWidth - smallestWindowMargin);
+                    int smallestIndexD = GlobUtils.GetIndex(j + innerWindowWidth - smallestWindowMargin, i + innerWindowWidth - smallestWindowMargin);
+
+                    int outerWindowArea = GlobUtils.CalculatePixelAreaFromIndexes(outerIndexA, outerIndexB, outerIndexC);
+
+                    float sumSmallestWindow = (integralImage[smallestIndexA] + integralImage[smallestIndexD] -
+                                            integralImage[smallestIndexB] - integralImage[smallestIndexC]);
+                    float averageSmallestWindow = sumSmallestWindow / smallestWindowArea;
+
+                    if (averageSmallestWindow > GlobVar.MaxDepthMeter - Thresholds.DetectionHeightHeadMin)
+                    {
+                        continue;
+                    }
+
+
+                    float sumInnerWindow = (integralImage[innerIndexA] + integralImage[innerIndexD] -
+                                            integralImage[innerIndexB] - integralImage[innerIndexC]);
+                    float sumOuterWindow = (integralImage[outerIndexA] + integralImage[outerIndexD] -
+                                            integralImage[outerIndexB] - integralImage[outerIndexC]);
+                    float averageInnerWindow = sumInnerWindow / innerWindowArea;
+
+                    if (averageInnerWindow > GlobVar.MaxDepthMeter - Thresholds.DetectionHeightHeadMin)
+                    {
+                        continue;
+                    }
+                    float averageOuterWindow = (sumOuterWindow - sumInnerWindow) / (outerWindowArea - innerWindowArea);
+
+                    //Console.WriteLine(averageInnerWindow - averageOuterWindow);
+                    //Console.WriteLine(averageSmallestWindow - averageInnerWindow);
+                    if ((averageOuterWindow - averageInnerWindow) > minThreshold && (averageOuterWindow - averageInnerWindow) < maxThreshold && (averageInnerWindow - averageSmallestWindow) > minThreshold2 && (averageInnerWindow - averageSmallestWindow) < maxThreshold2)
+                    {
+                        //Console.WriteLine(averageInnerWindow - averageOuterWindow);
+                        var candidate = GlobUtils.GetMidPointFromIndexes(innerIndexB, innerIndexC);
+                        candidates.Add(candidate);
+                        if (Diagnostics.ShowHaarRects)
+                        {
+                            GraphicsUtils.DrawRectangle(new IndexRectangle(smallestIndexA, smallestIndexB, smallestIndexC));
+                            //Graphics.DrawRectangle(new
+                            //IndexRectangle(outerIndexA, outerIndexB,
+                            //outerIndexC));
+                        }
                     }
                 }
             }
-            return integralImage;
+            return candidates;
         }
 
-        public List<int> GetHeadCandidates()
-        {
-            List<int> possibleHeadCandidates = SlideWindow(GlobVar.HaarOuterWindowSize, GlobVar.HaarInnerWindowSize,
-                Thresholds.HaarDifferenceBetweenInnerAndOuterRectangle);
-
-            DisjointSet groupedHeadCandidates = GroupCandidates(possibleHeadCandidates);
-
-            List<int> filteredHeadCandidates = FilterCandidates(groupedHeadCandidates);
-            
-            return filteredHeadCandidates;
-        }
-
-        /// <summary>
-        /// Slides a window with a subwindow with sizes specified by the input parameters over the frame. The average depth in the windows are compared and if above a certain threshold considered to be head candidates.
-        /// </summary>
-        private List<int> SlideWindow(int outerWindowSize, int innerWindowWidth, float windowDifferenceThreshold)
+        private static List<int> SlideWindow(float[] integralImage, int outerWindowSize, int innerWindowWidth, float maxThreshold, float minThreshold)
         {
             var candidates = new List<int>();
 
@@ -118,75 +183,131 @@ namespace Kinect2TrackingTopView
                     int outerIndexC = GlobUtils.GetIndex(jOuter, iOuter + outerWindowHeight);
                     int outerIndexD = GlobUtils.GetIndex(jOuter + outerWindowWidth, iOuter + outerWindowHeight);
 
-                    int outerWindowArea = GlobUtils.CalculateRectangleAreaFromIndexes(outerIndexA, outerIndexB, outerIndexC);
+                    int outerWindowArea = GlobUtils.CalculatePixelAreaFromIndexes(outerIndexA, outerIndexB, outerIndexC);
 
-                    float sumInnerWindow = (_integralImage[innerIndexA] + _integralImage[innerIndexD] -
-                                            _integralImage[innerIndexB] - _integralImage[innerIndexC]);
-                    float sumOuterWindow = (_integralImage[outerIndexA] + _integralImage[outerIndexD] -
-                                            _integralImage[outerIndexB] - _integralImage[outerIndexC]);
+                    float sumInnerWindow = (integralImage[innerIndexA] + integralImage[innerIndexD] -
+                                            integralImage[innerIndexB] - integralImage[innerIndexC]);
+                    float sumOuterWindow = (integralImage[outerIndexA] + integralImage[outerIndexD] -
+                                            integralImage[outerIndexB] - integralImage[outerIndexC]);
                     float averageInnerWindow = sumInnerWindow / innerWindowArea;
 
-                    if (averageInnerWindow > GlobVar.MaxSensingDepth - Thresholds.HaarDetectionHeightHeadMin)
+                    if (averageInnerWindow > GlobVar.MaxDepthMeter - Thresholds.DetectionHeightHeadMin)
                     {
                         continue;
                     }
                     float averageOuterWindow = (sumOuterWindow - sumInnerWindow) / (outerWindowArea - innerWindowArea);
 
-                    if ((averageOuterWindow - averageInnerWindow) > windowDifferenceThreshold)
+                    //Console.WriteLine(averageOuterWindow - averageInnerWindow);
+
+                    if ((averageOuterWindow - averageInnerWindow) > minThreshold && (averageOuterWindow - averageInnerWindow) < maxThreshold)
                     {
+                        //Console.WriteLine(averageOuterWindow - averageInnerWindow);
                         int candidate = GlobUtils.GetHighestValidPointIndexInRectangle(innerIndexB, innerIndexC);
                         candidates.Add(candidate);
-                        if (Debugger.ShowHaarRects)
+                        if (Diagnostics.ShowHaarRects)
                         {
                             GraphicsUtils.DrawRectangle(new IndexRectangle(innerIndexA, innerIndexB, innerIndexC));
+                            //Graphics.DrawRectangle(new
+                            //IndexRectangle(outerIndexA, outerIndexB,
+                            //outerIndexC));
                         }
+
+                        var v = GlobVar.SubtractedFilteredPointCloud[candidate];
                     }
                 }
             }
             return candidates;
         }
 
-        /// <summary>
-        /// Groups the candidates if the distance between them in the XY-plane is below threshold.
-        /// </summary>
-        private static DisjointSet GroupCandidates(List<int> candidatePoints)
+        private static float[] CreateStraightIntegralImage(CameraSpacePoint[] cameraSpacePoints) 
         {
-            DisjointSet groupedSet = new DisjointSet(candidatePoints);
+            float[] integralImage = new float[GlobVar.ScaledFrameLength];
+            for (var i = 0; i < GlobVar.ScaledFrameHeight; i++)
+            {
+                for (var j = 0; j < GlobVar.ScaledFrameWidth; j++)
+                {
+                    int indexCurrent = i * GlobVar.ScaledFrameWidth + j;
+                    int indexUpLeft = (i - 1) * GlobVar.ScaledFrameWidth + j - 1;
+                    int indexUp = (i - 1) * GlobVar.ScaledFrameWidth + j;
+                    int indexLeft = i * GlobVar.ScaledFrameWidth + j - 1;
+
+                    if (i==0 && j==0)
+                    {
+                        integralImage[indexCurrent] = cameraSpacePoints[indexCurrent].Z;
+                    }
+                    else if (i==0)
+                    {
+                        integralImage[indexCurrent] = cameraSpacePoints[indexCurrent].Z + integralImage[indexLeft];
+                    }
+                    else if (j == 0)
+                    {
+                        integralImage[indexCurrent] = cameraSpacePoints[indexCurrent].Z + integralImage[indexUp];
+                    }
+                    else 
+                    {
+                        integralImage[indexCurrent] = cameraSpacePoints[indexCurrent].Z + integralImage[indexUp] + integralImage[indexLeft] - integralImage[indexUpLeft];
+                    }
+                }
+            }
+            return integralImage;
+        }
+
+        private static DisjointSet GroupPoints3D(List<int> candidatePoints)
+        {
+            DisjointSet disjointSet = new DisjointSet(candidatePoints);
 
             for (int i = 0; i < candidatePoints.Count; i++)
             {
                 for (int j = 0; j < candidatePoints.Count; j++)
                 {
                     if (i == j) { continue; };
-                    if (GlobUtils.GetEuclideanDistanceXYPlane(candidatePoints[i], candidatePoints[j]) < Thresholds.HaarMaxDistanceBetweenCandidates)
+                    //Console.WriteLine(GlobUtils.GetDistanceInFrame(candidatePoints[i], candidatePoints[j]));
+                    if (GlobUtils.GetEuclideanDistanceXYPlane(candidatePoints[i], candidatePoints[j]) < Thresholds.HaarRectangleMaxDistance)
                     {
-                        groupedSet.Union(i, j);
+                        disjointSet.Union(i, j);
                     }
                 }
             }
 
-            return groupedSet;
+            return disjointSet;
         }
 
-        /// <summary>
-        /// Filters the candidate points. Only the candidates that has a certain amount of possible candidates in the neighborhood area are kept.
-        /// </summary>
-        private static List<int> FilterCandidates(DisjointSet disjointSet)
+        private static List<int> FilterPoints(DisjointSet disjointSet)
         {
-            var setRepresentatives = new List<int>();
+            List<int> filteredCandidatesIndex = new List<int>();
 
             for (int i = 0; i < disjointSet.Count; i++)
             {
                 int setRepresentative = disjointSet.Find(i);
-                if (!setRepresentatives.Contains(setRepresentative) && disjointSet.SetSize(setRepresentative) > Thresholds.HaarCandidateMinCount)
+                if (!filteredCandidatesIndex.Contains(setRepresentative) && disjointSet.SetSize(setRepresentative)>Thresholds.HaarRectangleMinCount)
+                { 
+                    filteredCandidatesIndex.Add(setRepresentative);
+                }
+            }
+
+
+            return filteredCandidatesIndex;
+        }
+
+
+        // Basically only filter for amount of rectangles
+        private static List<int> FilterPoints3D(DisjointSet disjointSet)
+        {
+
+            var representatives = new List<int>();
+
+            for (int i = 0; i < disjointSet.Count; i++)
+            {
+                int setRepresentative = disjointSet.Find(i);
+                if (!representatives.Contains(setRepresentative) && disjointSet.SetSize(setRepresentative) > Thresholds.HaarRectangleMinCount)
                 {
-                    setRepresentatives.Add(setRepresentative);
+                    representatives.Add(setRepresentative);
                 }
             }
 
             var highestCandidates = new List<int>();
 
-            foreach (var representative in setRepresentatives)
+            foreach (var representative in representatives)
             {
                 highestCandidates.Add(disjointSet.HighestIndexInTree[representative]);
             }

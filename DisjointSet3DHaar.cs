@@ -16,13 +16,11 @@ namespace InteractionDetection
     /// <summary>
     /// A Union-Find/Disjoint-Set data structure.
     /// </summary>
-    public class DisjointSet3D
+    public class DisjointSet3DHaar
     {
-
-
-        public float[] AverageX { get; private set; }
-        public float[] AverageY { get; private set; }
-        public float[] AverageZ { get; private set; }
+        public float[] HighestX { get; private set; }
+        public float[] HighestY { get; private set; }
+        public float[] HighestZ { get; private set; }
 
         /// <summary>
         /// The number of elements in the universe.
@@ -32,7 +30,7 @@ namespace InteractionDetection
         /// <summary>
         /// The parent of each element in the universe. Also label
         /// </summary>s
-        private int[] Parent;
+        public int[] Parent;
 
         /// <summary>
         /// The rank of each element in the universe.
@@ -55,14 +53,14 @@ namespace InteractionDetection
         /// <param name='count'>
         /// The number of elements in the universe.
         /// </param>
-        public DisjointSet3D(List<CameraSpacePoint> candidates)
+        public DisjointSet3DHaar(List<int> candidates)
         {
 
             this.Count = candidates.Count();
             this.SetCount = this.Count;
-            this.AverageX = new float[this.Count];
-            this.AverageY = new float[this.Count];
-            this.AverageZ = new float[this.Count];
+            this.HighestX = new float[this.Count];
+            this.HighestY = new float[this.Count];
+            this.HighestZ = new float[this.Count];
             this.Parent = new int[this.Count];
             this.Rank = new int[this.Count];
             this.SizeOfSet = new int[this.Count];
@@ -72,9 +70,9 @@ namespace InteractionDetection
                 this.Parent[i] = i;
                 this.Rank[i] = 0;
                 this.SizeOfSet[i] = 1;
-                this.AverageX[i] = candidates[i].X;
-                this.AverageY[i] = candidates[i].Y;
-                this.AverageZ[i] = candidates[i].Z;
+                this.HighestX[i] = GlobVar.SubtractedFilteredPointCloud[candidates[i]].X;
+                this.HighestY[i] = GlobVar.SubtractedFilteredPointCloud[candidates[i]].Y;
+                this.HighestZ[i] = GlobVar.SubtractedFilteredPointCloud[candidates[i]].Z;
             }
         }
 
@@ -131,52 +129,63 @@ namespace InteractionDetection
             //Calculate set average position
             int sizeSetI = this.SizeOfSet[irep];
             int sizeSetJ = this.SizeOfSet[jrep];
-            int totalSizeSets = sizeSetI + sizeSetJ;
 
-            float averageX = (AverageX[irep] * sizeSetI / totalSizeSets + AverageX[jrep] * sizeSetJ / totalSizeSets);
-            float averageY = (AverageY[irep] * sizeSetI / totalSizeSets + AverageY[jrep] * sizeSetJ / totalSizeSets);
-            float averageZ = (AverageZ[irep] * sizeSetI / totalSizeSets + AverageZ[jrep] * sizeSetJ / totalSizeSets);
+            float highestX;
+            float highestY;
+            float highestZ;
 
             // If i's rank is less than j's rank
-            if (irank < jrank)
+            if (HighestZ[irep] > HighestZ[jrep])
             {
-
                 // Then move i under j
                 this.Parent[irep] = jrep;
                 this.SizeOfSet[jrep] += sizeSetI;
 
-                AverageX[jrep] = averageX;
-                AverageY[jrep] = averageY;
-                AverageZ[jrep] = averageZ;
-
+                highestX = HighestX[jrep];
+                highestY = HighestY[jrep];
+                highestZ = HighestZ[jrep];
 
             } // Else if j's rank is less than i's rank
-            else if (jrank < irank)
+            else if (HighestZ[irep] < HighestZ[jrep])
             {
-
                 // Then move j under i
                 this.Parent[jrep] = irep;
                 this.SizeOfSet[irep] += sizeSetJ;
 
-                AverageX[irep] = averageX;
-                AverageY[irep] = averageY;
-                AverageZ[irep] = averageZ;
-
+                highestX = HighestX[irep];
+                highestY = HighestY[irep];
+                highestZ = HighestZ[irep];
             } // Else if their ranks are the same
             else
             {
-
                 // Then move i under j (doesn't matter which one goes where)
                 this.Parent[irep] = jrep;
                 this.SizeOfSet[jrep] += sizeSetI;
 
+                highestX = HighestX[jrep];
+                highestY = HighestY[jrep];
+                highestZ = HighestZ[jrep];
+
                 // And increment the the result tree's rank by 1
                 this.Rank[irep]++;
-
-                AverageX[jrep] = averageX;
-                AverageY[jrep] = averageY;
-                AverageZ[jrep] = averageZ;
             }
+
+            HighestX[jrep] = highestX;
+            HighestY[jrep] = highestY;
+            HighestZ[jrep] = highestZ;
+
+            HighestX[irep] = highestX;
+            HighestY[irep] = highestY;
+            HighestZ[irep] = highestZ;
+
+            HighestX[i] = highestX;
+            HighestY[i] = highestY;
+            HighestZ[i] = highestZ;
+
+            HighestX[j] = highestX;
+            HighestY[j] = highestY;
+            HighestZ[j] = highestZ;
+
         }
 
         /// <summary>
