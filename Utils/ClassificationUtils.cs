@@ -1,7 +1,8 @@
 ﻿//
-// Written by Leif Erik Bjoerkli
-//
-
+// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
+// Distributed under the MIT License.
+// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
+//  
 
 using System;
 using System.Collections.Generic;
@@ -10,48 +11,60 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Kinect;
 
-namespace InteractionDetection
+namespace Kinect2TrackingTopView
 {
     static class ClassificationUtils
     {
-
-        public static int GetHighestPointInSurroundingArea(Point candidate)
+        /// <summary>
+        /// Groups points where the distance between them in the euclidean XY-plane is below threshold. The highest point is kept.
+        /// </summary>
+        public static List<int> GroupCandidatesHighestPoints(List<int> highestPointIndexes, float groupingMaxDistance)
         {
-            const int searchPixelRange = Thresholds.ClassificationSearchRangeHighestPoint;
+            var groupedPoints = new List<int>();
 
-            int xStartIndex = candidate.x - searchPixelRange;
-            int yStartIndex = candidate.y - searchPixelRange;
-            int xStopIndex = candidate.x + searchPixelRange;
-            int yStopIndex = candidate.y + searchPixelRange;
-
-            int maxPointIndex = GlobUtils.GetIndex(candidate);
-            float maxHeight = GlobVar.SubtractedFilteredPointCloud[maxPointIndex].Z;
-
-            for (int i = yStartIndex; i < yStopIndex; i++)
+            var pointDepths = new Dictionary<int, float>();
+            for (int i = 0; i < highestPointIndexes.Count; i++)
             {
-                for (int j = xStartIndex; j < xStopIndex; j++)
+                if (!pointDepths.ContainsKey(highestPointIndexes[i]))
                 {
-                    int pixelIndex = GlobUtils.GetIndex(j, i);
-                    if (pixelIndex != -1)
-                    {
-                        float currentHeight = GlobVar.SubtractedFilteredPointCloud[pixelIndex].Z;
-                        if (currentHeight < maxHeight)
-                        {
-                            maxHeight = currentHeight;
-                            maxPointIndex = pixelIndex;
-                        } 
-                    }
+                    pointDepths.Add(highestPointIndexes[i], GlobVar.SubtractedFilteredPointCloud[highestPointIndexes[i]].Z);
                 }
             }
 
-            return maxPointIndex;
+            var sortedPointDepths = pointDepths.OrderBy(kvp => kvp.Value);
+
+            foreach (var sortedPointDepth in sortedPointDepths)
+            {
+                int currentIndex = sortedPointDepth.Key;
+                bool add = true;
+
+                foreach (var groupedPoint in groupedPoints)
+                {
+                    if (GlobUtils.GetEuclideanDistanceXYPlane(groupedPoint, currentIndex) < groupingMaxDistance)
+                    {
+                        add = false;
+                    }
+                }
+                if (add)
+                {
+                    groupedPoints.Add(sortedPointDepth.Key);
+                }
+            }
+
+            return groupedPoints;
         }
 
+        /// <summary>
+        /// Recursively searches for the highest point connected to the startindex. The search stops when the maximum searchdepth is reached.
+        /// </summary>
+        /// <param name="currentIndex"></param>
+        /// <param name="searchDepth"></param>
+        /// <returns></returns>
         public static int GetHighestConnectingPoint(int currentIndex, int searchDepth)
         {
             float currentDepth = GlobVar.SubtractedFilteredPointCloud[currentIndex].Z;
 
-            int[] neighbours = GlobUtils.GetNeighbour5x5IndexList(currentIndex);
+            int[] neighbours = GlobUtils.GetNeighbour5X5IndexList(currentIndex);
 
             int highestNeighbourIndex = currentIndex;
             float shallowestNeighbourDepth = currentDepth;
@@ -79,26 +92,32 @@ namespace InteractionDetection
             return GetHighestConnectingPoint(highestNeighbourIndex,searchDepth);
         }
 
-        public static List<int> ConnectedComponentLabelingIterative(int startIndex,int maxPixels)
+        /// <summary>
+        /// Connected component labeling. Height difference between connected pixels are used as evaluation criteria.
+        /// </summary>
+        /// <param name="startIndex">start index of the labeling</param>
+        /// <param name="maxPixels">maximum amount of pixels allowed in resulting labeled component</param>
+        /// <returns>Returns a list of connected headpoints</returns>
+        public static List<int> ConnectedComponentLabeling(int startIndex,int maxPixels)
         {
-            var Q = new Queue<int>();
+            var q = new Queue<int>();
 
-            Q.Enqueue(startIndex);
+            q.Enqueue(startIndex);
 
             List<int> headPixels = new List<int>();
 
             headPixels.Add(startIndex);
-            while (Q.Count > 0)
+            while (q.Count > 0)
             {
                 if (maxPixels<1)
                 {
                     break;
                 }
-                int currentIndex = Q.Dequeue();
+                int currentIndex = q.Dequeue();
 
                 CameraSpacePoint currentPoint = GlobVar.SubtractedFilteredPointCloud[currentIndex];
 
-                int[] neighbours = GlobUtils.GetNeighbourIndexListFast(currentIndex);
+                int[] neighbours = GlobUtils.GetNeighbour3X3IndexList(currentIndex);
 
                 for (int i = 0; i < neighbours.Length; i++)
                 {
@@ -109,12 +128,10 @@ namespace InteractionDetection
                     }
                     CameraSpacePoint neighbourPoint = GlobVar.SubtractedFilteredPointCloud[neighbourIndex];
 
-                    //var v = GlobUtils.GetHeightDifference(currentPoint, neighbourPoint);
-
                     if (!headPixels.Contains(neighbourIndex) &&
                         Thresholds.ClassificationLabelingMaxDistanceBetweenPoints > GlobUtils.GetHeightDifference(currentPoint,neighbourPoint))
                     {
-                        Q.Enqueue(neighbourIndex);
+                        q.Enqueue(neighbourIndex);
                         headPixels.Add(neighbourIndex);
                         maxPixels--;
                     }
@@ -122,8 +139,6 @@ namespace InteractionDetection
                 
             }
             return headPixels;
-            
         }
-        
     }
 }

@@ -7,8 +7,8 @@
     <ProjectGuid>{B814AEE7-0717-4BF4-BACB-150E8AA91633}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>InteractionDetection</RootNamespace>
-    <AssemblyName>InteractionDetection-WPF</AssemblyName>
+    <RootNamespace>Kinect2TrackingTopView</RootNamespace>
+    <AssemblyName>Kinect2TrackingTopView</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -53,7 +53,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup>
-    <StartupObject>InteractionDetection.App</StartupObject>
+    <StartupObject>Kinect2TrackingTopView.App</StartupObject>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>
@@ -83,55 +83,52 @@
     <Reference Include="PresentationFramework" />
   </ItemGroup>
   <ItemGroup>
-    <ApplicationDefinition Include="App.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </ApplicationDefinition>
+    <Compile Include="App.xaml.cs">
+      <DependentUpon>App.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Diagnostics\BodiesHistory.cs" />
     <Compile Include="BodyParts\Hand.cs" />
     <Compile Include="BodyParts\Body.cs" />
-    <Compile Include="Diagnostics.cs" />
-    <Compile Include="DisjointSet3DHaar.cs" />
-    <Compile Include="HeatMap.cs" />
-    <Compile Include="StatisticsWindow.xaml.cs">
+    <Compile Include="Debugger.cs" />
+    <Compile Include="Diagnostics\TrackingDiagnostics.cs" />
+    <Compile Include="Diagnostics\EnergyHistory.cs" />
+    <Compile Include="PostProcessing\HeatMap.cs" />
+    <Compile Include="PostProcessing\StatisticsWindow.xaml.cs">
       <DependentUpon>StatisticsWindow.xaml</DependentUpon>
     </Compile>
-    <Compile Include="TemporalMedianImage.cs" />
+    <Compile Include="PreProcessing\TemporalMedianImage.cs" />
     <Compile Include="Utils\EnergyUtils.cs" />
     <Compile Include="BodyParts\Torso.cs" />
     <Compile Include="Utils\DisjointSet3D.cs" />
     <Compile Include="Utils\BodyUtils.cs" />
     <Compile Include="Utils\ClassificationUtils.cs" />
     <Compile Include="Dijkstra\BasicHeap.cs" />
-    <Compile Include="Dijkstra\DijkstraFast.cs" />
-    <Compile Include="Dijkstra\DijkstraUtils.cs" />
-    <Compile Include="Dijkstra\HeapNode.cs" />
-    <Compile Include="Dijkstra\PriorityQueue.cs" />
+    <Compile Include="Dijkstra\Dijkstra.cs" />
     <Compile Include="Utils\DisjointSet.cs" />
     <Compile Include="Utils\GeodesicUtils.cs" />
     <Compile Include="BodyParts\Head.cs" />
     <Compile Include="GlobalVar\Thresholds.cs" />
     <Compile Include="Utils\Validators.cs" />
     <Compile Include="Graphics\XAMLCanvas.cs" />
+    <ApplicationDefinition Include="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </ApplicationDefinition>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Compile Include="App.xaml.cs">
-      <DependentUpon>App.xaml</DependentUpon>
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="Graphics\GraphicsUtils.cs" />
     <Compile Include="Utils\GlobUtils.cs" />
     <Compile Include="GlobalVar\GlobVar.cs" />
     <Compile Include="Utils\HaarDetector.cs" />
     <Compile Include="Utils\Structures.cs" />
     <Compile Include="Utils\ImageUtils.cs" />
-    <Compile Include="Utils\KinectUtils.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Page Include="StatisticsWindow.xaml">
+    <Page Include="PostProcessing\StatisticsWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -163,7 +160,9 @@
     <AppDesigner Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="App.config" />
+    <None Include="App.config">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.5">
@@ -181,6 +180,9 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="LICENSE.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
