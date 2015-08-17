@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InteractionDetection-WPF", "InteractionDetection-WPF.csproj", "{B814AEE7-0717-4BF4-BACB-150E8AA91633}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kinect2TrackingTopView", "Kinect2TrackingTopView.csproj", "{B814AEE7-0717-4BF4-BACB-150E8AA91633}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{516C0CD3-ACCC-47E5-B22B-8EFFA5A963E5}"
 EndProject

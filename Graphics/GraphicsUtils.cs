@@ -1,38 +1,37 @@
 ﻿//
-// Written by Leif Erik Bjoerkli
+// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
+// Distributed under the MIT License.
+// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
 //
-
 
 using System;
 using System.Windows;
 using System.Windows.Media;
 using Microsoft.Kinect;
 
-namespace InteractionDetection
+namespace Kinect2TrackingTopView
 {
-    class GraphicsUtils
+    static class GraphicsUtils
     {
-        public static void DrawRectangle(ThreePointRectangle rect )
+        public static void DrawRectangle(IndexRectangle rect)
         {
-            int topLength = rect.b.x - rect.a.x;
-            int sideLength = rect.c.y - rect.a.y;
+            Point a = GlobUtils.GetPoint(rect.A);
+            Point b = GlobUtils.GetPoint(rect.B);
+            Point c = GlobUtils.GetPoint(rect.C);
+
+            int topLength = b.X - a.X;
+            int sideLength = c.Y - a.Y;
 
             for (int i = 0; i < topLength; i++)
             {
-                GlobVar.Canvas[GlobUtils.GetIndex(rect.a.x + i, rect.a.y)] = (byte)120;
-                GlobVar.Canvas[GlobUtils.GetIndex(rect.c.x + i, rect.c.y)] = (byte)120;
+                GlobVar.GraphicsCanvas[GlobUtils.GetIndex(a.X + i, a.Y)] = (byte)120;
+                GlobVar.GraphicsCanvas[GlobUtils.GetIndex(c.X + i, c.Y)] = (byte)120;
             }
             for (int i = 0; i < sideLength; i++)
             {
-                GlobVar.Canvas[GlobUtils.GetIndex(rect.a.x, rect.a.y + i)] = (byte)120;
-                GlobVar.Canvas[GlobUtils.GetIndex(rect.b.x, rect.b.y + i)] = (byte)120;
+                GlobVar.GraphicsCanvas[GlobUtils.GetIndex(a.X, a.Y + i)] = (byte)120;
+                GlobVar.GraphicsCanvas[GlobUtils.GetIndex(b.X, b.Y + i)] = (byte)120;
             }
-        }
-
-        public static void DrawRectangle(IndexRectangle rect)
-        {
-            ThreePointRectangle pointRect = new ThreePointRectangle(GlobUtils.GetPoint(rect.a), GlobUtils.GetPoint(rect.b), GlobUtils.GetPoint(rect.c));
-            DrawRectangle(pointRect);
         }
 
         public static void DrawPoint(CameraSpacePoint p)
@@ -46,23 +45,23 @@ namespace InteractionDetection
         {
             int i;
             i = GlobUtils.GetIndex(x, y);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x + 1, y - 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x + 1, y);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x + 1, y + 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x - 1, y - 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x - 1, y);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x - 1, y + 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x, y + 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x, y - 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
         }
 
         public static void DrawPoint(int i)
@@ -72,28 +71,28 @@ namespace InteractionDetection
 
         public static void DrawPoint(Point point)
         {
-            int x = point.x;
-            int y = point.y;
+            int x = point.X;
+            int y = point.Y;
 
             int i;
             i = GlobUtils.GetIndex(x, y);
-            if (GlobUtils.BoundaryCheck(i)){GlobVar.Canvas[i] = (byte)255;}
+            if (GlobUtils.BoundaryCheck(i)){GlobVar.GraphicsCanvas[i] = (byte)255;}
             i = GlobUtils.GetIndex(x + 1, y - 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x + 1, y);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x + 1, y + 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x - 1, y - 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x - 1, y);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x - 1, y + 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x, y + 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
             i = GlobUtils.GetIndex(x, y - 1);
-            if (GlobUtils.BoundaryCheck(i)) { GlobVar.Canvas[i] = (byte)255; }
+            if (GlobUtils.BoundaryCheck(i)) { GlobVar.GraphicsCanvas[i] = (byte)255; }
 
         }
 
@@ -101,9 +100,9 @@ namespace InteractionDetection
         {
             for (int i = 0; i < intensityMap.Length; i++)
             {
-                if (GlobVar.Canvas[i] != 0)
+                if (GlobVar.GraphicsCanvas[i] != 0)
                 {
-                    intensityMap[i] = GlobVar.Canvas[i];
+                    intensityMap[i] = GlobVar.GraphicsCanvas[i];
                 }
             }
         }
@@ -112,66 +111,13 @@ namespace InteractionDetection
         {
             for (int i = 0; i < GlobVar.ScaledFrameLength; i++)
             {
-                GlobVar.Canvas[i] = (byte)0;
-            }
-        }
-
-        public static void DrawLine(float slope, float intercept,float r)
-        {
-
-            float start = -(float) (GlobVar.HalfMaxHorizontalWidth/1000);
-            float end = -start;
-
-
-            for (float i = start; i < end; i+=0.01f)
-            {
-                float x = i;
-                float y = x*slope + intercept;
-
-                int xPixelCoordinateOfPoint = (int)Math.Round(((x * 1000) / GlobVar.HalfMaxHorizontalWidth) * (GlobVar.ScaledFrameWidth / 2) + (GlobVar.ScaledFrameWidth / 2));
-                int yPixelCoordinateOfPoint = (int)Math.Round(((-y * 1000) / GlobVar.HalfMaxVerticalHeight) * (GlobVar.ScaledFrameHeight / 2) + (GlobVar.ScaledFrameHeight / 2));
-
-                int index = GlobUtils.GetIndex(xPixelCoordinateOfPoint, yPixelCoordinateOfPoint);
-
-                if (index != -1)
-                {
-                    GlobVar.Canvas[index] = 255;
-                }
-            }
-        }
-
-        public static void DrawPoint(float x, float y)
-        {
-            // Can compute factor offline
-
-            int xPixelCoordinateOfPoint = (int)Math.Round(((x * 1000) / GlobVar.HalfMaxHorizontalWidth) * (GlobVar.ScaledFrameWidth / 2) + (GlobVar.ScaledFrameWidth / 2));
-            int yPixelCoordinateOfPoint = (int)Math.Round(((-y * 1000) / GlobVar.HalfMaxVerticalHeight) * (GlobVar.ScaledFrameHeight / 2) + (GlobVar.ScaledFrameHeight / 2));
-
-            DrawPoint(xPixelCoordinateOfPoint, yPixelCoordinateOfPoint);
-        }
-
-        public static void DrawLineNoPointcloud(float slope, float intercept,float r)
-        {
-            float start = -(float) (GlobVar.HalfMaxHorizontalWidth/1000);
-            float end = -start;
-            for (float i = start; i < end; i+=0.01f)
-            {
-                float x = i;
-                float y = x*slope + intercept;
-                int xPixelCoordinateOfPoint = (int)Math.Round(((x * 1000) / GlobVar.HalfMaxHorizontalWidth) * (GlobVar.ScaledFrameWidth / 2) + (GlobVar.ScaledFrameWidth / 2));
-                int yPixelCoordinateOfPoint = (int)Math.Round(((-y * 1000) / GlobVar.HalfMaxVerticalHeight) * (GlobVar.ScaledFrameHeight / 2) + (GlobVar.ScaledFrameHeight / 2));
-                int index = GlobUtils.GetIndex(xPixelCoordinateOfPoint, yPixelCoordinateOfPoint);
-                if (index != -1)
-                {
-                    GlobVar.Canvas[index] = 255;
-                }
+                GlobVar.GraphicsCanvas[i] = (byte)0;
             }
         }
 
         public static void RenderDepthPixels(MainWindow mainWindow,CameraSpacePoint[] pointCloud)
         {
-
-            byte[] intensityMap = KinectUtils.CalculateIntensityFromCameraSpacePoints(pointCloud);
+            byte[] intensityMap = ImageUtils.CalculateIntensityFromCameraSpacePoints(pointCloud);
 
             DrawCanvas(intensityMap);
             ClearCanvas();
@@ -182,7 +128,7 @@ namespace InteractionDetection
                 GlobVar.IntensityBitmap.PixelWidth * GlobVar.IntensityBitmap.Format.BitsPerPixel / 8,
                 0);
 
-            XAMLCanvas.DrawCanvas(mainWindow);
+            XamlCanvas.Draw(mainWindow);
         }
 
         public static Color GetColorFromBodyId(int i)

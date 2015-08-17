@@ -1,9 +1,10 @@
 ﻿//
-// Written by Leif Erik Bjoerkli
+// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
+// Distributed under the MIT License.
+// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
 //
 
-
-namespace InteractionDetection
+namespace Kinect2TrackingTopView
 {
     using System;
     using System.Collections.Generic;
@@ -12,107 +13,69 @@ namespace InteractionDetection
     using System.Windows;
     using Microsoft.Kinect;
 
-    /// <summary>
-    /// Interaction logic for MainWindow
-    /// </summary>
     public partial class MainWindow : Window
     {
-        /// <summary>
-        /// Timestamp of previous frame
-        /// </summary>
-        private TimeSpan lastTime;
+
+        private TimeSpan _timestampPreviousFrame;
 
         /// <summary>
         /// Points in camera space mapped from depthframe
         /// </summary>
-        private CameraSpacePoint[] cameraSpacePoints = null;
+        private readonly CameraSpacePoint[] _cameraSpacePoints = null;
         
-        /// <summary>
-        /// Active Kinect sensor
-        /// </summary>
-        private KinectSensor kinectSensor = null;
+        private KinectSensor _kinectSensor = null;
 
         /// <summary>
         /// Reader for depth frames
         /// </summary>
-        private DepthFrameReader depthFrameReader = null;
+        private DepthFrameReader _depthFrameReader = null;
 
         /// <summary>
         /// Description of the data contained in the depth frame
         /// </summary>
-        private FrameDescription depthFrameDescription = null;
+        private readonly FrameDescription _depthFrameDescription = null;
 
-        /// <summary>
-        /// Perform diagnostics on solution
-        /// </summary>
-        private Diagnostics diagnostics;
+        private readonly HeatMap _heatMap;
 
-        private HeatMap heatMap;
+        private readonly EnergyHistory _energyHistory;
 
-        private EnergyUtils energyUtils;
+        private readonly TrackingDiagnostics _trackingDiagnostics;
 
-        private StatisticsWindow statWindow;
+        private readonly Stopwatch _stopwatch;
 
-        private Stopwatch stopwatch;
+        private readonly TemporalMedianImage _temporalMedianImage;
 
-        private TemporalMedianImage temporalMedianImage;
-
-        private int temporalFrameCounter;
-
-        /// <summary>
-        /// Initializes a new instance of the MainWindow class.
-        /// </summary>
-        /// 
         public MainWindow()
         {
             
-            // get the kinectSensor object
-            this.kinectSensor = KinectSensor.GetDefault();
+            _kinectSensor = KinectSensor.GetDefault();
 
-            // open the reader for the depth frames
-            this.depthFrameReader = this.kinectSensor.DepthFrameSource.OpenReader();
+            _depthFrameDescription = _kinectSensor.DepthFrameSource.FrameDescription;
+            
+            GlobVar.CoordinateMapper = _kinectSensor.CoordinateMapper;
 
-            // wire handler for frame arrival
-            this.depthFrameReader.FrameArrived += this.Reader_FrameArrived;
+            _depthFrameReader = _kinectSensor.DepthFrameSource.OpenReader();
 
-            // get FrameDescription from DepthFrameSource
-            this.depthFrameDescription = this.kinectSensor.DepthFrameSource.FrameDescription;
+            _depthFrameReader.FrameArrived += Reader_FrameArrived;
 
-            // initialize array to store points in camera space of arriving
-            // frame
-            this.cameraSpacePoints = new CameraSpacePoint[depthFrameDescription.Width * depthFrameDescription.Height];
+            _cameraSpacePoints = new CameraSpacePoint[_depthFrameDescription.Width * _depthFrameDescription.Height];
 
-            // initialize diagnostics object
-            diagnostics = new Diagnostics();
+            _trackingDiagnostics = new TrackingDiagnostics();
 
-            // initialize heatmap analysis
-            heatMap = new HeatMap();
+            _heatMap = new HeatMap();
 
-            // initialize energy analysis
-            energyUtils = new EnergyUtils();
+            _energyHistory = new EnergyHistory();
 
-            // initialize global coordinate mapper from kinect sensor
-            GlobVar.CoordinateMapper = this.kinectSensor.CoordinateMapper;
+            _temporalMedianImage = new TemporalMedianImage(GlobVar.TemporalFrameCounter);
 
-            // initialize global variable that stores the max amount of detected
-            // bodies in session for labeling
-            GlobVar.MaxBodyCount = 0;
+            _stopwatch = new Stopwatch();
 
-            // open the sensor
-            this.kinectSensor.Open();
+            BodiesHistory.Initialize();
 
-            // initialize the components (controls) of the window
-            this.InitializeComponent();
+            // initialize the components (controls) of the GUI window
+            InitializeComponent();
 
-            BodyUtils.InitializeBodyHistory();
-
-            statWindow = new StatisticsWindow();
-
-            stopwatch = new Stopwatch();
-
-            temporalFrameCounter = 30;
-            temporalMedianImage = new TemporalMedianImage(temporalFrameCounter);
-
+            _kinectSensor.Open();
         }
 
         /// <summary>
@@ -122,17 +85,16 @@ namespace InteractionDetection
         /// <param name="e">event arguments</param>
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
-            if (this.depthFrameReader != null)
+            if (this._depthFrameReader != null)
             {
-                // DepthFrameReader is IDisposable
-                this.depthFrameReader.Dispose();
-                this.depthFrameReader = null;
+                this._depthFrameReader.Dispose();
+                this._depthFrameReader = null;
             }
 
-            if (this.kinectSensor != null)
+            if (this._kinectSensor != null)
             {
-                this.kinectSensor.Close();
-                this.kinectSensor = null;
+                this._kinectSensor.Close();
+                this._kinectSensor = null;
             }
 
             PostProcessing();
@@ -145,242 +107,140 @@ namespace InteractionDetection
         /// <param name="e">event arguments</param>
         private void Reader_FrameArrived(object sender, DepthFrameArrivedEventArgs e)
         {
-            ushort[] frameData = new ushort[depthFrameDescription.Width*depthFrameDescription.Height];
+            ushort[] frameData = new ushort[_depthFrameDescription.Width*_depthFrameDescription.Height];
 
             using (DepthFrame depthFrame = e.FrameReference.AcquireFrame())
             {
                 if (depthFrame != null)
                 {
-                    depthFrameReader.IsPaused = true;
+                    _depthFrameReader.IsPaused = true;
                     depthFrame.CopyFrameDataToArray(frameData);
-                    GlobVar.CoordinateMapper.MapDepthFrameToCameraSpace(frameData, this.cameraSpacePoints);
+                    GlobVar.CoordinateMapper.MapDepthFrameToCameraSpace(frameData, this._cameraSpacePoints);
 
-                    var preProcessedFrame = PreProcessFrame(cameraSpacePoints);
+                    var preProcessedFrame = PreProcessFrame(_cameraSpacePoints);
 
-                    if (temporalMedianImage.ImageSet)
+                    if (_temporalMedianImage.ImageSet)
                     {
-                        var subtractedFrame = temporalMedianImage.Subtract(preProcessedFrame);
+                        var subtractedFrame = _temporalMedianImage.Subtract(preProcessedFrame);
 
-                        stopwatch.Restart();
+                        _stopwatch.Restart();
 
-                        var filteredFrame = ImageUtils.MedianFilter3X3(subtractedFrame,2);
+                        var noiseFilteredFrame = ImageUtils.MedianFilter3X3(subtractedFrame,2);
 
-                        foreach (var cameraSpacePoint in filteredFrame)
+                        if (Debugger.LogTimeMedian)
                         {
-                            if (cameraSpacePoint.Z != GlobVar.MaxDepthMeter && float.IsInfinity(cameraSpacePoint.X) && float.IsInfinity(cameraSpacePoint.Y) && cameraSpacePoint.X == 0 && cameraSpacePoint.Y == 0 || cameraSpacePoint.Z == 0) 
-                            {
-                                
-                            }
+                            _stopwatch.Stop();
+                            Console.WriteLine("Median: {0}", _stopwatch.ElapsedMilliseconds);
                         }
+                        _stopwatch.Restart();
 
-                        if (Diagnostics.LogTimeMedian)
-                        {
-                            stopwatch.Stop();
-                            Console.WriteLine("Median: {0}", stopwatch.ElapsedMilliseconds);
-                        }
-                        stopwatch.Restart();
+                        GlobVar.SubtractedFilteredPointCloud = noiseFilteredFrame;
 
-                        GlobVar.SubtractedFilteredPointCloud = filteredFrame;
+                        TrackBodies(depthFrame.RelativeTime, noiseFilteredFrame);
 
-                        AnalyzeFrame(depthFrame.RelativeTime, filteredFrame);
-
-                        GlobVar.PreviousFrame = filteredFrame;
-                        GraphicsUtils.RenderDepthPixels(this, filteredFrame);
+                        GlobVar.PreviousFrame = noiseFilteredFrame;
+                        GraphicsUtils.RenderDepthPixels(this, noiseFilteredFrame);
 
                     }
-                    depthFrameReader.IsPaused = false;
+                    _depthFrameReader.IsPaused = false;
                 }
            }
         }
 
         private CameraSpacePoint[] PreProcessFrame(CameraSpacePoint[] cameraSpacePoints)
         {
-            stopwatch.Restart();
+            _stopwatch.Restart();
 
-            var processedFrame = new CameraSpacePoint[cameraSpacePoints.Length];
+            var preProcessedFrame = new CameraSpacePoint[cameraSpacePoints.Length];
 
-            processedFrame = KinectUtils.ScaleFrame(cameraSpacePoints);
-            if (Diagnostics.LogTime)
+            preProcessedFrame = ImageUtils.ScaleFrame(cameraSpacePoints);
+            if (Debugger.LogTime)
             {
-                stopwatch.Stop();
-                Console.WriteLine("ScaleFrame: {0}", stopwatch.ElapsedMilliseconds);
+                _stopwatch.Stop();
+                Console.WriteLine("ScaleFrame: {0}", _stopwatch.ElapsedMilliseconds);
             }
-            stopwatch.Restart();
+            _stopwatch.Restart();
 
-            GlobVar.ScaledCameraSpacePoints = processedFrame;
+            GlobVar.ScaledCameraSpacePoints = preProcessedFrame;
 
-            //processedFrame =
-            //KinectUtils.DepthFilterBackgroundSubtraction(GlobVar.ScaledCameraSpacePoints);
-            //if (Diagnostics.LogTime) {
-            //    stopwatch.Stop();
-            //    Console.WriteLine("DepthFilterBackgroundSubtraction: {0}", stopwatch.ElapsedMilliseconds);
-            //}
-            //stopwatch.Restart();
-
-            if (!temporalMedianImage.ImageSet)
+            if (!_temporalMedianImage.ImageSet)
             {
-                temporalMedianImage.AddFrame(processedFrame);
+                _temporalMedianImage.AddFrame(preProcessedFrame);
             }
 
-            return processedFrame;
+            return preProcessedFrame;
         }
 
-        private List<Head> DetectHeads(CameraSpacePoint[] filteredFrame)
+        /// <summary>
+        /// Performs body tracking on frame
+        /// </summary>
+        private void TrackBodies(TimeSpan frameRelativeTime, CameraSpacePoint[] noiseFilteredFrame)
         {
-            stopwatch.Restart();
+            _stopwatch.Restart();
 
-            List<int> candidatesHaar = HaarDetector.CreateRegions(filteredFrame);
-            if (Diagnostics.LogTimeHaar)
+            var validatedHeads = DetectHeads(noiseFilteredFrame);
+
+            GeodesicUtils.CreateGeodesicGraph(noiseFilteredFrame);
+
+            if (Debugger.LogTimeGeodesic)
             {
-                stopwatch.Stop();
-                Console.WriteLine("Haar: {0}", stopwatch.ElapsedMilliseconds);
+                _stopwatch.Stop();
+                Console.WriteLine("CreateGeodesicGraph: {0}", _stopwatch.ElapsedMilliseconds);
             }
-            stopwatch.Restart();
+            _stopwatch.Restart(); 
 
-            List<int> candidateHighestPointIndex = new List<int>();
-            for (int i = 0; i < candidatesHaar.Count; i++)
+
+            var bodies = CreateBodies(frameRelativeTime, validatedHeads);
+            BodiesHistory.Update(bodies);
+
+            _trackingDiagnostics.AddNewBodyFrame(bodies, frameRelativeTime);
+            _heatMap.AddFrame(GlobVar.HeatCanvas);
+            _energyHistory.Update(bodies, frameRelativeTime);
+
+            if (Debugger.PrintFps)
             {
-                if (Diagnostics.ShowCandidateHeadpixel)
-                {
-                    GraphicsUtils.DrawPoint(candidatesHaar[i]);
-                }
-
-                int candidateIndex = candidatesHaar[i];
-
-                if (candidateIndex != -1)
-                {
-                    int highestPointIndex = ClassificationUtils.GetHighestConnectingPoint(candidateIndex, Thresholds.ClassificationSearchDepthHighestPoint);
-                    candidateHighestPointIndex.Add(highestPointIndex);
-
-                    if (Diagnostics.ShowTopHeadpixel)
-                    {
-                        GraphicsUtils.DrawPoint(highestPointIndex);
-                    }
-                }
+                var currentTime = frameRelativeTime;
+                Console.WriteLine("FPS: {0}", Debugger.CalculateFps(currentTime, _timestampPreviousFrame));
+                _timestampPreviousFrame = currentTime;
             }
-
-            var groupedHighestIndexes = Validators.GroupCandidateHighestPoints(candidateHighestPointIndex, Thresholds.ValidatorsHighestPointGroupingDistance);
-
-            if (groupedHighestIndexes.Count > 1)
-            {
-                
-            }
-
-            List<Head> validatedCandidateHeads = new List<Head>();
-            for (int i = 0; i < groupedHighestIndexes.Count; i++)
-            {
-
-                var highestPointIndex = groupedHighestIndexes[i];
-                if (Diagnostics.ShowTopHeadPixelAfterGrouping)
-                {
-                    GraphicsUtils.DrawPoint(highestPointIndex);
-                }
-
-                List<int> headPointIndexes = ClassificationUtils.ConnectedComponentLabelingIterative(highestPointIndex, Thresholds.ClassificationLabelingMaxPoints);
-
-                if (Diagnostics.ShowHeadpixelsBeforeValidation)
-                {
-                    foreach (var p in headPointIndexes)
-                    {
-                        GraphicsUtils.DrawPoint(p);
-                    }
-                }
-
-                if (Validators.SizeOfHead(headPointIndexes) && Validators.MovementInFrame(headPointIndexes) && Validators.IsSphericalShape(headPointIndexes, highestPointIndex))
-                {
-                    if (Diagnostics.ShowValidatedTopHeadpixel)
-                    {
-                        GraphicsUtils.DrawPoint(highestPointIndex);
-                    }
-
-                    var head = new Head(highestPointIndex);
-                    var success = head.AddHeadPixels(headPointIndexes);
-                    if (success == 1)
-                    {
-                        validatedCandidateHeads.Add(head);
-                    }
-                    if (Diagnostics.ShowValidatedHeadPixels)
-                    {
-                        foreach (var p in head.HeadPointIndexes)
-                        {
-                            GraphicsUtils.DrawPoint(p);
-                        }
-                    }
-                }
-            }
-            foreach (var head in validatedCandidateHeads)
-            {
-                if (GlobVar.SubtractedFilteredPointCloud[head.HighestPointIndex].Z == GlobVar.MaxDepthMeter || GlobVar.SubtractedFilteredPointCloud[head.HighestPointIndex].X == 0 || float.IsInfinity(GlobVar.SubtractedFilteredPointCloud[head.HighestPointIndex].X))
-                {
-                    
-                }
-            }
-
-            GlobVar.ValidatedCandidateHeads = validatedCandidateHeads;
-
-            return validatedCandidateHeads;
+            
         }
 
-        private void AnalyzeFrame(TimeSpan frameRelativeTime, CameraSpacePoint[] filteredFrame)
+        private List<Body> CreateBodies(TimeSpan frameRelativeTime, List<Head> validatedHeads)
         {
-            stopwatch.Restart();
-
-            var validatedHeads = DetectHeads(filteredFrame);
-
-            GlobVar.AdjacancyList = GeodesicUtils.CreateGeodesicGraph(filteredFrame);
-            if (Diagnostics.LogTimeGeodesic)
-            {
-                stopwatch.Stop();
-                Console.WriteLine("CreateGeodesicGraph: {0}", stopwatch.ElapsedMilliseconds);
-            }
-            stopwatch.Restart();
-
-            if (Diagnostics.ShowGeodesicGraph)
-            {
-                foreach (var v in GlobVar.AdjacancyList)
-                {
-                    GlobVar.Canvas[v.Key] = 255;
-                }
-            }
-
-            if (GlobVar.AdjacancyList.Count == 0 && validatedHeads.Count > 0)
-            {
-                var v = filteredFrame[validatedHeads[0].CenterPointIndex];
-            }           
-
-            Dictionary<Head,int> identifiedHeads = BodyUtils.IdentifyHeads(validatedHeads);
+            Dictionary<Head, int> identifiedHeadsWithLabels = BodyUtils.IdentifyHeads(validatedHeads);
 
             var bodies = new List<Body>();
-            foreach (var identifiedHead in identifiedHeads)
+            foreach (var identifiedHead in identifiedHeadsWithLabels)
             {
                 Stopwatch stopwatchBody = new Stopwatch();
                 stopwatchBody.Start();
 
                 Body body;
+                int bodyId = identifiedHead.Value;
+                Head head = identifiedHead.Key;
 
-                if (identifiedHead.Value == -1)
+                if (bodyId == -1)
                 {
                     GlobVar.MaxBodyCount++;
-                    body = new Body(GlobVar.MaxBodyCount, frameRelativeTime);
-                    body.AddHead(identifiedHead.Key);
+                    int newBodyId = GlobVar.MaxBodyCount;
+                    body = new Body(newBodyId, frameRelativeTime);
+                    body.AddHead(head);
                     bodies.Add(body);
 
-                    GeodesicUtils.AddBodyLandmarks(identifiedHead.Key, body);
-                    if (Diagnostics.LogTime)
+                    BodyUtils.AddBodyRegions(GeodesicUtils.GeodesicGraph, head, body);
+                    if (Debugger.LogTime)
                     {
-                        stopwatch.Stop();
-                        Console.WriteLine("ShortestPath: {0}", stopwatch.ElapsedMilliseconds);
+                        _stopwatch.Stop();
+                        Console.WriteLine("ShortestPath: {0}", _stopwatch.ElapsedMilliseconds);
                     }
-                    stopwatch.Restart();
+                    _stopwatch.Restart();
                 }
                 else
                 {
-                    int bodyId = identifiedHead.Value;
-
-                    Head head = identifiedHead.Key;
                     head.AvgCenterPoint = BodyUtils.GetAverageHeadLocationLastFrames(bodyId);
 
-                    if (Diagnostics.ShowHeadAvgCenterPoint)
+                    if (Debugger.ShowHeadAvgCenterPoint)
                     {
                         GraphicsUtils.DrawPoint(head.AvgCenterPoint);
                     }
@@ -389,50 +249,126 @@ namespace InteractionDetection
                     body.AddHead(head);
                     bodies.Add(body);
 
-                    GeodesicUtils.AddBodyLandmarks(identifiedHead.Key, body);
-                    if (Diagnostics.LogTime)
+                    BodyUtils.AddBodyRegions(GeodesicUtils.GeodesicGraph, head, body);
+                    if (Debugger.LogTime)
                     {
-                        stopwatch.Stop();
-                        Console.WriteLine("ShortestPath: {0}", stopwatch.ElapsedMilliseconds);
+                        _stopwatch.Stop();
+                        Console.WriteLine("ShortestPath: {0}", _stopwatch.ElapsedMilliseconds);
                     }
-                    stopwatch.Restart();
+                    _stopwatch.Restart();
                 }
-                diagnostics.Draw(body);
+                Debugger.Draw(body);
 
                 EnergyUtils.UpdateBodyEnergy(body);
-                if (Diagnostics.LogTime)
+                if (Debugger.LogTime)
                 {
                     stopwatchBody.Stop();
                     Console.WriteLine("ProcessOneBody: {0}", stopwatchBody.ElapsedMilliseconds);
                 }
             }
+            return bodies;
+        }
 
-            BodyUtils.UpdateBodyHistory(bodies);
-            diagnostics.AddNewBodyFrameDiagnostics(bodies, frameRelativeTime);
+        private List<Head> DetectHeads(CameraSpacePoint[] noiseFilteredFrame)
+        {
+            _stopwatch.Restart();
 
-            heatMap.AddFrame(GlobVar.HeatCanvas);
-            energyUtils.UpdateGlobalEnergy(bodies, frameRelativeTime);
-
-            if (Diagnostics.PrintFPS)
+            var haarDetector = new HaarDetector(noiseFilteredFrame);
+            List<int> headCandidatesHaar = haarDetector.GetHeadCandidates();
+            if (Debugger.LogTimeHaar)
             {
-                var currentTime = frameRelativeTime;
-                Console.WriteLine("FPS: {0}", GlobUtils.CalculateFPS(currentTime, lastTime));
-                lastTime = currentTime;
+                _stopwatch.Stop();
+                Console.WriteLine("Haar: {0}", _stopwatch.ElapsedMilliseconds);
             }
-            
+            _stopwatch.Restart();
+
+            var candidatesHighestConnectingPoints = new List<int>();
+
+            for (int i = 0; i < headCandidatesHaar.Count; i++)
+            {
+                if (Debugger.ShowCandidateHeadpixel)
+                {
+                    GraphicsUtils.DrawPoint(headCandidatesHaar[i]);
+                }
+
+                int headCandidateIndex = headCandidatesHaar[i];
+
+                if (headCandidateIndex != -1)
+                {
+                    int highestPointIndex = ClassificationUtils.GetHighestConnectingPoint(headCandidateIndex, Thresholds.ClassificationHighestPointSearchDepth);
+
+                    candidatesHighestConnectingPoints.Add(highestPointIndex);
+
+                    if (Debugger.ShowTopHeadpixel)
+                    {
+                        GraphicsUtils.DrawPoint(highestPointIndex);
+                    }
+                }
+            }
+
+            var groupedHighestIndexes = ClassificationUtils.GroupCandidatesHighestPoints(candidatesHighestConnectingPoints, Thresholds.ClassificationHighestPointGroupingDistance);
+
+            List<Head> validatedCandidateHeads = ValidateCandidateHeadsHighestPoint(groupedHighestIndexes);
+
+            GlobVar.ValidatedCandidateHeads = validatedCandidateHeads;
+
+            return validatedCandidateHeads;
+        }
+
+        private List<Head> ValidateCandidateHeadsHighestPoint(IReadOnlyList<int> groupedHighestIndexes)
+        {
+            List<Head> validatedCandidateHeads = new List<Head>();
+
+            foreach (var highestPointIndex in groupedHighestIndexes)
+            {
+                if (Debugger.ShowTopHeadPixelAfterGrouping)
+                {
+                    GraphicsUtils.DrawPoint(highestPointIndex);
+                }
+
+                var headPointIndexes = ClassificationUtils.ConnectedComponentLabeling(highestPointIndex, Thresholds.ClassificationLabelingMaxPoints);
+
+                if (Debugger.ShowHeadpixelsBeforeValidation)
+                {
+                    foreach (var index in headPointIndexes)
+                    {
+                        GraphicsUtils.DrawPoint(index);
+                    }
+                }
+
+                if (Validators.EvaluateSizeOfHeadRegion(headPointIndexes))
+                {
+                    if (Debugger.ShowValidatedTopHeadpixel)
+                    {
+                        GraphicsUtils.DrawPoint(highestPointIndex);
+                    }
+
+                    var head = new Head(highestPointIndex);
+                    var success = head.AddHeadPixels(headPointIndexes);
+                    if (success != -1)
+                    {
+                        validatedCandidateHeads.Add(head);
+                    }
+                    if (Debugger.ShowValidatedHeadPixels)
+                    {
+                        foreach (var p in head.HeadPointIndexes)
+                        {
+                            GraphicsUtils.DrawPoint(p);
+                        }
+                    }
+                }
+            }
+            return validatedCandidateHeads;
         }
 
         private void PostProcessing()
         {
-            // Calculate tracking success of session
-            diagnostics.CalculateTrackingSuccess();
+            _trackingDiagnostics.CalculateTrackingSuccess();
 
-            stopwatch.Restart();
             var statWindow = new StatisticsWindow();
-            statWindow.Draw(heatMap.GetMap(), energyUtils.GetEnergyHistory(), diagnostics.Timestamps, diagnostics.BodyTrackedHistory);
-            stopwatch.Stop();
-            Console.WriteLine("Statwindow: {0}",stopwatch.ElapsedMilliseconds);
-
+            statWindow.Draw(_heatMap.Get(), _energyHistory.Get(), _trackingDiagnostics.Timestamps, _trackingDiagnostics.HeadTrackedHistory);
         }
+
+
     }
 }

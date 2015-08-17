@@ -1,34 +1,22 @@
 ﻿//
-// Written by Leif Erik Bjoerkli
-//
-
+// Copyright (c) Leif Erik Bjoerkli, Norwegian University of Science and Technology, 2015.
+// Distributed under the MIT License.
+// (See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT)
+//  
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Kinect;
 
-namespace InteractionDetection
+namespace Kinect2TrackingTopView
 {
-    class Head
+    public class Head
     {
         public List<int> HeadPointIndexes { get; private set; }
-        public int Label { get; private set; }
         public int CenterPointIndex;
-        public Point CartesianCenterPoint;
-        public CameraSpacePoint CenterPoint { get; set; }
-        public CameraSpacePoint HighestPoint { get; set; }
-        private CameraSpacePoint _avgCenterPoint;
-        public int HighestPointIndex;
-
-        public CameraSpacePoint AvgCenterPoint
-        {
-            get { return _avgCenterPoint; }
-            set { _avgCenterPoint = value; }
-        }
-
+        public CameraSpacePoint CenterPoint { get; private set; }
+        public CameraSpacePoint AvgCenterPoint{ get; set; }
+        public readonly int HighestPointIndex;
 
         public Head(int highestPointIndex)
         {
@@ -41,26 +29,16 @@ namespace InteractionDetection
             };
         }
 
-        public int AddHeadPixels(List<int> headPixels )
+        public int AddHeadPixels(List<int> headPixels)
         {
             HeadPointIndexes = headPixels;
-            CenterPoint = BodyUtils.CalculateCenterPointFromValidPoints(headPixels);
+            CenterPoint = BodyUtils.CalculateAveragePointFromValidPoints(headPixels);
 
             var depthSpacePoint = GlobVar.CoordinateMapper.MapCameraPointToDepthSpace(CenterPoint);
 
             CenterPointIndex = GlobUtils.GetIndex((int)Math.Round(depthSpacePoint.X) / 2, (int)Math.Round(depthSpacePoint.Y) / 2);
 
-            if (CenterPointIndex == -1)
-            {
-                return -1;
-            }
-
-            if (float.IsInfinity(GlobVar.SubtractedFilteredPointCloud[CenterPointIndex].X) || float.IsInfinity(GlobVar.SubtractedFilteredPointCloud[CenterPointIndex].Y) || GlobVar.SubtractedFilteredPointCloud[CenterPointIndex].Z == GlobVar.MaxDepthMeter)
-            {
-
-            }
-
-            return 1;
+            return CenterPointIndex;
         }
     }
 }
