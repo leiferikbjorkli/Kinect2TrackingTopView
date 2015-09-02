@@ -15,25 +15,24 @@ namespace Kinect2TrackingTopView
 
     public partial class MainWindow : Window
     {
-
         private TimeSpan _timestampPreviousFrame;
 
         /// <summary>
         /// Points in camera space mapped from depthframe
         /// </summary>
-        private readonly CameraSpacePoint[] _cameraSpacePoints = null;
+        private readonly CameraSpacePoint[] _cameraSpacePoints;
         
-        private KinectSensor _kinectSensor = null;
+        private KinectSensor _kinectSensor;
 
         /// <summary>
         /// Reader for depth frames
         /// </summary>
-        private DepthFrameReader _depthFrameReader = null;
+        private DepthFrameReader _depthFrameReader;
 
         /// <summary>
         /// Description of the data contained in the depth frame
         /// </summary>
-        private readonly FrameDescription _depthFrameDescription = null;
+        private readonly FrameDescription _depthFrameDescription;
 
         private readonly HeatMap _heatMap;
 
@@ -51,8 +50,6 @@ namespace Kinect2TrackingTopView
             _kinectSensor = KinectSensor.GetDefault();
 
             _depthFrameDescription = _kinectSensor.DepthFrameSource.FrameDescription;
-            
-            GlobVar.CoordinateMapper = _kinectSensor.CoordinateMapper;
 
             _depthFrameReader = _kinectSensor.DepthFrameSource.OpenReader();
 
@@ -71,6 +68,10 @@ namespace Kinect2TrackingTopView
             _stopwatch = new Stopwatch();
 
             BodiesHistory.Initialize();
+
+            GlobVar.CoordinateMapper = _kinectSensor.CoordinateMapper;
+
+            GlobVar.TimeStamps = new List<TimeSpan>();
 
             // initialize the components (controls) of the GUI window
             InitializeComponent();
@@ -107,6 +108,9 @@ namespace Kinect2TrackingTopView
         /// <param name="e">event arguments</param>
         private void Reader_FrameArrived(object sender, DepthFrameArrivedEventArgs e)
         {
+            var stopwatchTotalTime = new Stopwatch();
+            stopwatchTotalTime.Restart();
+            
             ushort[] frameData = new ushort[_depthFrameDescription.Width*_depthFrameDescription.Height];
 
             using (DepthFrame depthFrame = e.FrameReference.AcquireFrame())
@@ -115,9 +119,11 @@ namespace Kinect2TrackingTopView
                 {
                     _depthFrameReader.IsPaused = true;
                     depthFrame.CopyFrameDataToArray(frameData);
-                    GlobVar.CoordinateMapper.MapDepthFrameToCameraSpace(frameData, this._cameraSpacePoints);
+                    GlobVar.CoordinateMapper.MapDepthFrameToCameraSpace(frameData, _cameraSpacePoints);
 
                     var preProcessedFrame = PreProcessFrame(_cameraSpacePoints);
+
+                    //preProcessedFrame = ImageUtils.DepthFilter(preProcessedFrame);
 
                     if (_temporalMedianImage.ImageSet)
                     {
@@ -125,9 +131,9 @@ namespace Kinect2TrackingTopView
 
                         _stopwatch.Restart();
 
-                        var noiseFilteredFrame = ImageUtils.MedianFilter3X3(subtractedFrame,2);
+                        var noiseFilteredFrame = ImageUtils.MedianFilter3X3(subtractedFrame, 2);
 
-                        if (Debugger.LogTimeMedian)
+                        if (Logger.LogTimeMedian)
                         {
                             _stopwatch.Stop();
                             Console.WriteLine("Median: {0}", _stopwatch.ElapsedMilliseconds);
@@ -138,13 +144,18 @@ namespace Kinect2TrackingTopView
 
                         TrackBodies(depthFrame.RelativeTime, noiseFilteredFrame);
 
-                        GlobVar.PreviousFrame = noiseFilteredFrame;
-                        GraphicsUtils.RenderDepthPixels(this, noiseFilteredFrame);
-
+                        GraphicsUtils.RenderDepthPixels(this, noiseFilteredFrame); 
+                        //_temporalMedianImage.Draw(this);
                     }
                     _depthFrameReader.IsPaused = false;
                 }
-           }
+            }
+            if (Logger.LogTimeTotal)
+            {
+                stopwatchTotalTime.Stop();
+                Console.WriteLine("TotalTime: {0}", stopwatchTotalTime.ElapsedMilliseconds);
+            }
+
         }
 
         private CameraSpacePoint[] PreProcessFrame(CameraSpacePoint[] cameraSpacePoints)
@@ -154,14 +165,12 @@ namespace Kinect2TrackingTopView
             var preProcessedFrame = new CameraSpacePoint[cameraSpacePoints.Length];
 
             preProcessedFrame = ImageUtils.ScaleFrame(cameraSpacePoints);
-            if (Debugger.LogTime)
+            if (Logger.LogTimeScaling)
             {
                 _stopwatch.Stop();
                 Console.WriteLine("ScaleFrame: {0}", _stopwatch.ElapsedMilliseconds);
             }
             _stopwatch.Restart();
-
-            GlobVar.ScaledCameraSpacePoints = preProcessedFrame;
 
             if (!_temporalMedianImage.ImageSet)
             {
@@ -176,38 +185,39 @@ namespace Kinect2TrackingTopView
         /// </summary>
         private void TrackBodies(TimeSpan frameRelativeTime, CameraSpacePoint[] noiseFilteredFrame)
         {
-            _stopwatch.Restart();
 
             var validatedHeads = DetectHeads(noiseFilteredFrame);
 
+            _stopwatch.Restart();
+
             GeodesicUtils.CreateGeodesicGraph(noiseFilteredFrame);
 
-            if (Debugger.LogTimeGeodesic)
+            if (Logger.LogTimeGeodesic)
             {
                 _stopwatch.Stop();
                 Console.WriteLine("CreateGeodesicGraph: {0}", _stopwatch.ElapsedMilliseconds);
             }
             _stopwatch.Restart(); 
 
-
             var bodies = CreateBodies(frameRelativeTime, validatedHeads);
             BodiesHistory.Update(bodies);
 
-            _trackingDiagnostics.AddNewBodyFrame(bodies, frameRelativeTime);
+            GlobVar.TimeStamps.Add(frameRelativeTime);
+            TrackingDiagnostics.AddNewBodyFrame(bodies);
             _heatMap.AddFrame(GlobVar.HeatCanvas);
-            _energyHistory.Update(bodies, frameRelativeTime);
+            EnergyHistory.Update(bodies);
 
-            if (Debugger.PrintFps)
+            if (Logger.PrintFps)
             {
                 var currentTime = frameRelativeTime;
-                Console.WriteLine("FPS: {0}", Debugger.CalculateFps(currentTime, _timestampPreviousFrame));
+                Console.WriteLine("FPS: {0}", Logger.CalculateFps(currentTime, _timestampPreviousFrame));
                 _timestampPreviousFrame = currentTime;
             }
-            
         }
 
         private List<Body> CreateBodies(TimeSpan frameRelativeTime, List<Head> validatedHeads)
         {
+            _stopwatch.Restart();
             Dictionary<Head, int> identifiedHeadsWithLabels = BodyUtils.IdentifyHeads(validatedHeads);
 
             var bodies = new List<Body>();
@@ -229,18 +239,14 @@ namespace Kinect2TrackingTopView
                     bodies.Add(body);
 
                     BodyUtils.AddBodyRegions(GeodesicUtils.GeodesicGraph, head, body);
-                    if (Debugger.LogTime)
-                    {
-                        _stopwatch.Stop();
-                        Console.WriteLine("ShortestPath: {0}", _stopwatch.ElapsedMilliseconds);
-                    }
-                    _stopwatch.Restart();
                 }
                 else
                 {
+                    // Attribute head with average centerpoint in from the last
+                    // frames.
                     head.AvgCenterPoint = BodyUtils.GetAverageHeadLocationLastFrames(bodyId);
 
-                    if (Debugger.ShowHeadAvgCenterPoint)
+                    if (Logger.ShowHeadAvgCenterPoint)
                     {
                         GraphicsUtils.DrawPoint(head.AvgCenterPoint);
                     }
@@ -250,22 +256,21 @@ namespace Kinect2TrackingTopView
                     bodies.Add(body);
 
                     BodyUtils.AddBodyRegions(GeodesicUtils.GeodesicGraph, head, body);
-                    if (Debugger.LogTime)
-                    {
-                        _stopwatch.Stop();
-                        Console.WriteLine("ShortestPath: {0}", _stopwatch.ElapsedMilliseconds);
-                    }
-                    _stopwatch.Restart();
+                    
                 }
-                Debugger.Draw(body);
+                
+                
+                Logger.Draw(body);
 
-                EnergyUtils.UpdateBodyEnergy(body);
-                if (Debugger.LogTime)
-                {
-                    stopwatchBody.Stop();
-                    Console.WriteLine("ProcessOneBody: {0}", stopwatchBody.ElapsedMilliseconds);
-                }
+                EnergyUtils.CalculateBodyMechanicalEnergy(body);
             }
+
+            if (Logger.LogTimeCreateBodies)
+            {
+                _stopwatch.Stop();
+                Console.WriteLine("CreateBodies: {0}", _stopwatch.ElapsedMilliseconds);
+            }
+            
             return bodies;
         }
 
@@ -275,7 +280,7 @@ namespace Kinect2TrackingTopView
 
             var haarDetector = new HaarDetector(noiseFilteredFrame);
             List<int> headCandidatesHaar = haarDetector.GetHeadCandidates();
-            if (Debugger.LogTimeHaar)
+            if (Logger.LogTimeHaar)
             {
                 _stopwatch.Stop();
                 Console.WriteLine("Haar: {0}", _stopwatch.ElapsedMilliseconds);
@@ -286,7 +291,7 @@ namespace Kinect2TrackingTopView
 
             for (int i = 0; i < headCandidatesHaar.Count; i++)
             {
-                if (Debugger.ShowCandidateHeadpixel)
+                if (Logger.ShowCandidateHeadpixel)
                 {
                     GraphicsUtils.DrawPoint(headCandidatesHaar[i]);
                 }
@@ -299,7 +304,7 @@ namespace Kinect2TrackingTopView
 
                     candidatesHighestConnectingPoints.Add(highestPointIndex);
 
-                    if (Debugger.ShowTopHeadpixel)
+                    if (Logger.ShowTopHeadpixel)
                     {
                         GraphicsUtils.DrawPoint(highestPointIndex);
                     }
@@ -308,27 +313,32 @@ namespace Kinect2TrackingTopView
 
             var groupedHighestIndexes = ClassificationUtils.GroupCandidatesHighestPoints(candidatesHighestConnectingPoints, Thresholds.ClassificationHighestPointGroupingDistance);
 
-            List<Head> validatedCandidateHeads = ValidateCandidateHeadsHighestPoint(groupedHighestIndexes);
+            List<Head> validatedCandidateHeads = ValidateCandidateHeads(groupedHighestIndexes);
 
             GlobVar.ValidatedCandidateHeads = validatedCandidateHeads;
-
+            if (Logger.LogTimeClassificationValidation)
+            {
+                _stopwatch.Stop();
+                Console.WriteLine("ClassificationValidation: {0}", _stopwatch.ElapsedMilliseconds);
+            }
+            
             return validatedCandidateHeads;
         }
 
-        private List<Head> ValidateCandidateHeadsHighestPoint(IReadOnlyList<int> groupedHighestIndexes)
+        private static List<Head> ValidateCandidateHeads(IReadOnlyList<int> groupedHighestIndexes)
         {
             List<Head> validatedCandidateHeads = new List<Head>();
 
             foreach (var highestPointIndex in groupedHighestIndexes)
             {
-                if (Debugger.ShowTopHeadPixelAfterGrouping)
+                if (Logger.ShowTopHeadPixelAfterGrouping)
                 {
                     GraphicsUtils.DrawPoint(highestPointIndex);
                 }
 
                 var headPointIndexes = ClassificationUtils.ConnectedComponentLabeling(highestPointIndex, Thresholds.ClassificationLabelingMaxPoints);
 
-                if (Debugger.ShowHeadpixelsBeforeValidation)
+                if (Logger.ShowHeadpixelsBeforeValidation)
                 {
                     foreach (var index in headPointIndexes)
                     {
@@ -338,7 +348,7 @@ namespace Kinect2TrackingTopView
 
                 if (Validators.EvaluateSizeOfHeadRegion(headPointIndexes))
                 {
-                    if (Debugger.ShowValidatedTopHeadpixel)
+                    if (Logger.ShowValidatedTopHeadpixel)
                     {
                         GraphicsUtils.DrawPoint(highestPointIndex);
                     }
@@ -349,7 +359,7 @@ namespace Kinect2TrackingTopView
                     {
                         validatedCandidateHeads.Add(head);
                     }
-                    if (Debugger.ShowValidatedHeadPixels)
+                    if (Logger.ShowValidatedHeadPixels)
                     {
                         foreach (var p in head.HeadPointIndexes)
                         {
@@ -363,12 +373,15 @@ namespace Kinect2TrackingTopView
 
         private void PostProcessing()
         {
-            _trackingDiagnostics.CalculateTrackingSuccess();
+            if (Logger.PrintTotalFps)
+            {
+                Console.WriteLine("TotalFPS: {0}", Logger.CalculateAverageFps(GlobVar.TimeStamps));
+            }
+
+            TrackingDiagnostics.CalculateTrackingSuccess();
 
             var statWindow = new StatisticsWindow();
-            statWindow.Draw(_heatMap.Get(), _energyHistory.Get(), _trackingDiagnostics.Timestamps, _trackingDiagnostics.HeadTrackedHistory);
+            statWindow.Draw(_heatMap.Get(), _energyHistory.Get(), GlobVar.TimeStamps);
         }
-
-
     }
 }

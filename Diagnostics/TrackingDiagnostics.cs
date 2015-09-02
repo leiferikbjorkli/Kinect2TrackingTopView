@@ -6,6 +6,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Kinect2TrackingTopView
 {
@@ -19,71 +20,102 @@ namespace Kinect2TrackingTopView
 
         public TrackingDiagnostics()
         {
-            HandsTrackedHistory = new List<int>();
+            _headsTrackedHistory = new List<List<int>>();
 
-            Timestamps = new List<TimeSpan>();
+            _torsosTrackedHistory = new List<List<int>>();
 
-            HeadTrackedHistory = new List<int>();
-
-            TorsoTrackedHistory = new List<int>();
+            _handsTrackedHistory = new List<Dictionary<int, int>>();
 
         }
-
-        public List<TimeSpan> Timestamps { get; private set; }
-
-        public List<int> HandsTrackedHistory { get; private set; }
-
-        public List<int> HeadTrackedHistory { get; private set; }
-
-        public List<int> TorsoTrackedHistory { get; private set; }
 
         public static float HeadsTrackedAmount { get; private set; }
 
         public static float TorsosTrackedAmount { get; private set; }
 
-        public void AddNewBodyFrame(List<Body> bodies, TimeSpan timestamp)
+        private static List<List<int>> _headsTrackedHistory;
+        private static List<List<int>> _torsosTrackedHistory;
+        private static List<Dictionary<int, int>> _handsTrackedHistory;
+
+        private static int GetMostTrackedBodyIdFromTrackingHistory(List<List<int>> trackingHistory)
         {
-            int headsTracked = 0;
-            int handsTracked = 0;
-            int torsosTracked = 0;
+            var count = new Dictionary<int, int>();
+
+            for (int i = 1; i <= GlobVar.MaxBodyCount; i++)
+            {
+                count.Add(i, 0);
+            }
+
+            foreach (var frame in trackingHistory)
+            {
+                foreach (var detection in frame)
+                {
+                    count[detection]++;
+                }
+            }
+
+            var sortedCount = count.OrderByDescending(kvp => kvp.Value);
+
+            return sortedCount.ElementAt(0).Key;
+        }
+
+        public static void AddNewBodyFrame(List<Body> bodies)
+        {
+            var frameHeadTracking = new List<int>();
+            var frameTorsoTracking = new List<int>();
+            var frameHandTracking = new Dictionary<int, int>();
+
             foreach (var body in bodies)
             {
-                headsTracked++;
+                frameHeadTracking.Add(body.Id);
+                if (body.Torso != null)
+                {
+                    frameTorsoTracking.Add(body.Id);
+                }
+                var handCount = 0;
                 foreach (var hand in body.Hands)
                 {
                     if (hand != null)
                     {
-                        handsTracked++;
+                        handCount++;
                     }
-
                 }
-                if (body.Torso != null)
-                {
-                    torsosTracked++;
-                }
+                frameHandTracking.Add(body.Id,handCount);
             }
-
-            Timestamps.Add(timestamp);
-            HeadTrackedHistory.Add(headsTracked);
-            HandsTrackedHistory.Add(handsTracked);
-            TorsoTrackedHistory.Add(torsosTracked);
+            _headsTrackedHistory.Add(frameHeadTracking);
+            _torsosTrackedHistory.Add(frameTorsoTracking);
+            _handsTrackedHistory.Add(frameHandTracking);
         }
 
         /// <summary>
         /// Calculates the average amount of tracked heads, torsos and hands
         /// </summary>
-        public void CalculateTrackingSuccess()
+        public static void CalculateTrackingSuccess()
         {
+            int mostTrackedBody = GetMostTrackedBodyIdFromTrackingHistory(_headsTrackedHistory);
+
             int totalHandsTracked = 0;
             int totalHeadsTracked = 0;
             int totalTorsosTracked = 0;
-            int numberOfFrames = HeadTrackedHistory.Count;
+
+            var numberOfFrames = _headsTrackedHistory.Count;
 
             for (int i = 0; i < numberOfFrames; i++)
             {
-                totalHeadsTracked += HeadTrackedHistory[i];
-                totalHandsTracked += HandsTrackedHistory[i];
-                totalTorsosTracked += TorsoTrackedHistory[i];
+                foreach (var detection in _headsTrackedHistory[i])
+                {
+                    if (detection == mostTrackedBody)
+                    {
+                        totalHeadsTracked++;
+                        if (_torsosTrackedHistory[i].Contains(mostTrackedBody))
+                        {
+                            totalTorsosTracked++;
+                        }
+                        if (_handsTrackedHistory[i].ContainsKey(mostTrackedBody))
+                        {
+                            totalHandsTracked += _handsTrackedHistory[i][mostTrackedBody];
+                        }
+                    }
+                }
             }
                 
             int totalNumberPossibleHands = NumberOfHands * totalHeadsTracked;

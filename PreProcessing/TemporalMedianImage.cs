@@ -20,7 +20,7 @@ namespace Kinect2TrackingTopView
     class TemporalMedianImage
     {
         private readonly Dictionary<int, CameraSpacePoint[]> _temporalFrames;
-        private CameraSpacePoint[] _temporalImage;
+        public static CameraSpacePoint[] TemporalImage { get; private set; }
         private int _frameCounter;
         private readonly int _maxTemporalFrames;
 
@@ -58,7 +58,7 @@ namespace Kinect2TrackingTopView
             {
                 CameraSpacePoint cameraSpacePoint = cameraSpacePoints[i];
 
-                if (cameraSpacePoints[i].Z > _temporalImage[i].Z - Thresholds.TemporalMedianMapPadding)
+                if (cameraSpacePoints[i].Z > TemporalImage[i].Z - Thresholds.TemporalMedianMapPadding)
                 {
                     cameraSpacePoint.Z = maxDepth;
                 }
@@ -74,7 +74,7 @@ namespace Kinect2TrackingTopView
         /// </summary>
         private void CalculateTemporalMedianImage()
         {
-            _temporalImage = new CameraSpacePoint[_temporalFrames[1].Length];
+            TemporalImage = new CameraSpacePoint[_temporalFrames[1].Length];
 
             float[] temporalZ = new float[_maxTemporalFrames];
             
@@ -87,10 +87,10 @@ namespace Kinect2TrackingTopView
                 Array.Sort(temporalZ);
 
                 // Save shallowest point from the initial phase
-                _temporalImage[j].Z = temporalZ[0];
+                TemporalImage[j].Z = temporalZ[0];
             }
 
-            _temporalImage = TemporalMedianFilter3X3(_temporalImage,4);
+            TemporalImage = TemporalMedianFilter3X3(TemporalImage,4);
 
             ImageSet = true;
         }
@@ -104,15 +104,7 @@ namespace Kinect2TrackingTopView
                 return;
             }
 
-            byte[] intensityMap = ImageUtils.CalculateIntensityFromCameraSpacePoints(_temporalImage);
-            GraphicsUtils.DrawCanvas(intensityMap);
-            GraphicsUtils.ClearCanvas();
-            GlobVar.IntensityBitmap.WritePixels(
-                new Int32Rect(0, 0, GlobVar.IntensityBitmap.PixelWidth, GlobVar.IntensityBitmap.PixelHeight),
-                intensityMap,
-                GlobVar.IntensityBitmap.PixelWidth * GlobVar.IntensityBitmap.Format.BitsPerPixel / 8,
-                0);
-            XamlCanvas.Draw(mainWindow);
+            GraphicsUtils.RenderDepthPixels(mainWindow, TemporalImage);
         }
 
         /// <summary>

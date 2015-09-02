@@ -5,7 +5,10 @@
 //
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Kinect;
 
@@ -96,7 +99,7 @@ namespace Kinect2TrackingTopView
 
         }
 
-        public static void DrawCanvas(byte[] intensityMap)
+        public static void DrawCanvasOnMap(byte[] intensityMap)
         {
             for (int i = 0; i < intensityMap.Length; i++)
             {
@@ -119,7 +122,7 @@ namespace Kinect2TrackingTopView
         {
             byte[] intensityMap = ImageUtils.CalculateIntensityFromCameraSpacePoints(pointCloud);
 
-            DrawCanvas(intensityMap);
+            DrawCanvasOnMap(intensityMap);
             ClearCanvas();
 
             GlobVar.IntensityBitmap.WritePixels(
@@ -128,7 +131,36 @@ namespace Kinect2TrackingTopView
                 GlobVar.IntensityBitmap.PixelWidth * GlobVar.IntensityBitmap.Format.BitsPerPixel / 8,
                 0);
 
-            XamlCanvas.Draw(mainWindow);
+            var canvas = new Canvas
+            {
+                Width = 700,
+                Height = 580
+            };
+
+            if (BodyUtils.HasBodyTracking() & Logger.DrawEnergyValue)
+            {
+                DrawEnergyValue(canvas);
+            }
+
+            canvas.Background = new ImageBrush(GlobVar.IntensityBitmap);
+            mainWindow.Content = canvas;
+            mainWindow.Show();
+        }
+
+        private static void DrawEnergyValue(Canvas canvas)
+        {
+            List<Body> lastBodies = BodiesHistory.Get.ElementAt(BodiesHistory.Get.Count - 1);
+
+            foreach (var body in lastBodies)
+            {
+                var textBlock = new TextBlock
+                {
+                    Text = string.Format("{0:N2}", body.EnergyLevel),
+                    Foreground = new SolidColorBrush(GetColorFromBodyId(body.Id)),
+                    Margin = new Thickness(100, 200 + 20*body.Id, 0, 0)
+                };
+                canvas.Children.Add(textBlock);
+            }
         }
 
         public static Color GetColorFromBodyId(int i)

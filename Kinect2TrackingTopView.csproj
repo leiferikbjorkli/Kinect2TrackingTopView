@@ -89,7 +89,7 @@
     <Compile Include="Diagnostics\BodiesHistory.cs" />
     <Compile Include="BodyParts\Hand.cs" />
     <Compile Include="BodyParts\Body.cs" />
-    <Compile Include="Debugger.cs" />
+    <Compile Include="Logger.cs" />
     <Compile Include="Diagnostics\TrackingDiagnostics.cs" />
     <Compile Include="Diagnostics\EnergyHistory.cs" />
     <Compile Include="PostProcessing\HeatMap.cs" />
@@ -109,7 +109,6 @@
     <Compile Include="BodyParts\Head.cs" />
     <Compile Include="GlobalVar\Thresholds.cs" />
     <Compile Include="Utils\Validators.cs" />
-    <Compile Include="Graphics\XAMLCanvas.cs" />
     <ApplicationDefinition Include="App.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -180,9 +179,6 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="LICENSE.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

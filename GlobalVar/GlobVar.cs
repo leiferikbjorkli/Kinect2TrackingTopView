@@ -32,29 +32,29 @@ namespace Kinect2TrackingTopView
         public static int MaxBodyCount = 0;
 
         // Average radius of a human head
-        public const float RadiusHumanHead = 0.0875f;
+        private const float RadiusHumanHead = 0.0875f;
 
         public const float MaxSensingDepth = 4.1f;
         public const float MinSensingDepth = 0;
 
+        // Derive the approximate optimal size of the haar-windows
         private const float ApproxSensingDepth = (MaxSensingDepth*1000) - 1700;
         private static readonly double PixelsPerMmAtSensingHeight = ScaledFrameWidth / (Math.Tan((GlobUtils.ToRadians(HorizontalFieldOfView) / 2)) * ApproxSensingDepth * 2);
-        public static readonly int HaarInnerWindowSize = (int)(PixelsPerMmAtSensingHeight * (RadiusHumanHead*1000) * 2);
-        public static readonly int HaarOuterWindowSize = HaarInnerWindowSize*3;
+        public static readonly int HaarInnerWindowWidth = (int)(PixelsPerMmAtSensingHeight * (RadiusHumanHead*1000) * 2);
+        public static readonly int HaarOuterWindowWidth = HaarInnerWindowWidth*3;
 
-        static public byte[] GraphicsCanvas = new byte[ScaledFrameLength];
+        static public readonly byte[] GraphicsCanvas = new byte[ScaledFrameLength];
         static public int[] HeatCanvas = new int[ScaledFrameLength];
 
-        static public CameraSpacePoint[] ScaledCameraSpacePoints = new CameraSpacePoint[ScaledFrameLength];
         public static CameraSpacePoint[] SubtractedFilteredPointCloud = new CameraSpacePoint[ScaledFrameLength];
         
-        public static CameraSpacePoint[] PreviousFrame = new CameraSpacePoint[ScaledFrameLength];
-
-        public static WriteableBitmap IntensityBitmap = new WriteableBitmap(ScaledFrameWidth, ScaledFrameHeight, 96.0, 96.0, PixelFormats.Gray8, null);
+        public static readonly WriteableBitmap IntensityBitmap = new WriteableBitmap(ScaledFrameWidth, ScaledFrameHeight, 96.0, 96.0, PixelFormats.Gray8, null);
 
         public static CoordinateMapper CoordinateMapper;
 
         public static List<Head> ValidatedCandidateHeads;
+
+        public static List<TimeSpan> TimeStamps;
 
     }
 }

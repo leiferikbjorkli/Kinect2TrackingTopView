@@ -109,17 +109,25 @@ namespace Kinect2TrackingTopView
                     // Include body in current heatcanvas
                     GlobVar.HeatCanvas[minDistance.Key] = body.Id;
                 }
-                if (minDistance.Value < 0.8f && minDistance.Value > 0.3f)
+                if (minDistance.Value < 0.2f)
                 {
-                    if (Debugger.ShowTorso)
+                    if (Logger.ShowHeadRegionPixels)
+                    {
+                        GlobVar.GraphicsCanvas[minDistance.Key] = 255;
+                    }
+                    torsoPoints.Add(minDistance.Key);
+                }
+                else if (minDistance.Value < 0.6f && minDistance.Value > 0.2f)
+                {
+                    if (Logger.ShowTorsoPixels)
                     {
                         GlobVar.GraphicsCanvas[minDistance.Key] = 200;
                     }
                     torsoPoints.Add(minDistance.Key);
                 }
-                else if (minDistance.Value < 1.1f && minDistance.Value > 0.9f)
+                else if (minDistance.Value < 1.2f && minDistance.Value > 0.9f)
                 {
-                    if (Debugger.ShowHandPixels)
+                    if (Logger.ShowHandPixels)
                     {
                         GlobVar.GraphicsCanvas[minDistance.Key] = 150;
                     }
@@ -220,11 +228,11 @@ namespace Kinect2TrackingTopView
 
             var recentBodyIds = GetRecentBodyIds();
 
-            var avgLocationsLastHeads = GetAvgLocationsLastHeadsFromIds(recentBodyIds);
+            var avgLocationsRecentHeads = GetAvgLocationsRecentHeadsFromIds(recentBodyIds);
 
-            var avgDistancesFromCandidateHeadsToLastHeads = GetAvgDistancesFromCandidateHeadsToLastHeads(validatedCandidateHeads, avgLocationsLastHeads);
+            var distancesFromCandidateHeadsToRecentHeads = GetDistancesFromCandidateHeadsToRecentHeads(validatedCandidateHeads, avgLocationsRecentHeads);
 
-            var sortedDistances = avgDistancesFromCandidateHeadsToLastHeads.OrderBy(i => i.Value);
+            var sortedDistances = distancesFromCandidateHeadsToRecentHeads.OrderBy(i => i.Value);
 
             foreach (var sortedDistance in sortedDistances)
             {
@@ -248,36 +256,36 @@ namespace Kinect2TrackingTopView
             return identifiedHeads;
         }
 
-        private static Dictionary<Tuple<Head, int>, float> GetAvgDistancesFromCandidateHeadsToLastHeads(List<Head> validatedCandidateHeads,
-            Dictionary<int, CameraSpacePoint> avgLocationsLastHeads)
+        private static Dictionary<Tuple<Head, int>, float> GetDistancesFromCandidateHeadsToRecentHeads(List<Head> validatedCandidateHeads,
+            Dictionary<int, CameraSpacePoint> avgLocationsRecentHeads)
         {
-            var avgDistancesFromCandidateHeadsToLastHeads = new Dictionary<Tuple<Head, int>, float>();
+            var distancesFromCandidateHeadsToRecentHeads = new Dictionary<Tuple<Head, int>, float>();
 
             foreach (var candidateHead in validatedCandidateHeads)
             {
-                foreach (var avgLocationLastHead in avgLocationsLastHeads)
+                foreach (var avgLocationRecentHead in avgLocationsRecentHeads)
                 {
-                    var assignment = new Tuple<Head, int>(candidateHead, avgLocationLastHead.Key);
+                    var assignment = new Tuple<Head, int>(candidateHead, avgLocationRecentHead.Key);
                     var distanceToCandidate = GlobUtils.GetEuclideanDistance(candidateHead.CenterPoint,
-                        avgLocationLastHead.Value);
+                        avgLocationRecentHead.Value);
 
                     if (distanceToCandidate < Thresholds.LastFramesHeadMaxDistance)
                     {
-                        avgDistancesFromCandidateHeadsToLastHeads.Add(assignment, distanceToCandidate);
+                        distancesFromCandidateHeadsToRecentHeads.Add(assignment, distanceToCandidate);
                     }
                 }
             }
-            return avgDistancesFromCandidateHeadsToLastHeads;
+            return distancesFromCandidateHeadsToRecentHeads;
         }
 
-        private static Dictionary<int, CameraSpacePoint> GetAvgLocationsLastHeadsFromIds(List<int> recentBodyIds)
+        private static Dictionary<int, CameraSpacePoint> GetAvgLocationsRecentHeadsFromIds(List<int> recentBodyIds)
         {
-            var avgLocationsLastHeads = new Dictionary<int, CameraSpacePoint>();
+            var avgLocationsRecentHeads = new Dictionary<int, CameraSpacePoint>();
 
             foreach (var bodyId in recentBodyIds)
             {
-                avgLocationsLastHeads.Add(bodyId, GetAverageHeadLocationLastTenFrames(bodyId));
-                if (Debugger.ShowHeadAvgCenterLastTenFrames)
+                avgLocationsRecentHeads.Add(bodyId, GetAverageHeadLocationLastTenFrames(bodyId));
+                if (Logger.ShowHeadAvgCenterLastTenFrames)
                 {
                     if (!float.IsNaN(GetAverageHeadLocationLastTenFrames(bodyId).Z))
                     {
@@ -285,7 +293,7 @@ namespace Kinect2TrackingTopView
                     }
                 }
             }
-            return avgLocationsLastHeads;
+            return avgLocationsRecentHeads;
         }
 
         public static Dictionary<int, float> GetDistancesToHandAveragesLastFrames(List<CameraSpacePoint> handCenterPoints, CameraSpacePoint avgFirstHandPoint,
@@ -309,7 +317,7 @@ namespace Kinect2TrackingTopView
         private static List<int> GetRecentBodyIds()
         {
             List<int> recentBodyIds = new List<int>();
-            for (int i = BodiesHistory.Get.Count - 1; i >= NumberOfTrackedFramesStartIndex; i--)
+            for (int i = 0; i < BodiesHistory.Get.Count; i++)
             {
                 foreach (var body in BodiesHistory.Get.ElementAt(i))
                 {

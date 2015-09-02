@@ -70,7 +70,7 @@ namespace Kinect2TrackingTopView
         /// <summary>
         /// Entry function for drawing the statistics window.
         /// </summary>
-        public void Draw(byte[] heatMap, List<Dictionary<int, double>> energyHistory, List<TimeSpan> timestamps, List<int> headTrackedHistory)
+        public void Draw(byte[] heatMap, List<Dictionary<int, double>> energyHistory, List<TimeSpan> timestamps)
         {
             if (energyHistory.Count != timestamps.Count)
             {
@@ -78,7 +78,7 @@ namespace Kinect2TrackingTopView
             }
 
             DrawHeatMap(heatMap);
-            DrawEnergyGraph(energyHistory, timestamps, headTrackedHistory);
+            DrawEnergyGraph(energyHistory, timestamps);
             DrawAverageEnergyUse();
             DrawTrackingSuccess();
 
@@ -93,7 +93,7 @@ namespace Kinect2TrackingTopView
         {
             _backgroundBitmap.WritePixels(
                 new Int32Rect(0, 0, _backgroundBitmap.PixelWidth, _backgroundBitmap.PixelHeight),
-                ImageUtils.CalculateIntensityFromCameraSpacePoints(GlobVar.ScaledCameraSpacePoints),
+                ImageUtils.CalculateIntensityFromCameraSpacePoints(TemporalMedianImage.TemporalImage),
                 _backgroundBitmap.PixelWidth * _backgroundBitmap.Format.BitsPerPixel / 8,
                 0);
 
@@ -128,10 +128,10 @@ namespace Kinect2TrackingTopView
         /// <summary>
         /// Draws the energy use with respect to time.
         /// </summary>
-        private static void DrawEnergyGraph(List<Dictionary<int, double>> energyHistory, List<TimeSpan> timestamps, List<int> trackingHistory)
+        private static void DrawEnergyGraph(List<Dictionary<int, double>> energyHistory, List<TimeSpan> timestamps)
         {
             DrawEnergyGraphYAxis();
-            DrawEnergyGraphXAxis(trackingHistory);
+            DrawEnergyGraphXAxis(energyHistory);
             DrawEnergyGraphXAxisTimeStamps(timestamps);
             DrawEnergyBars(energyHistory);
         }
@@ -239,7 +239,7 @@ namespace Kinect2TrackingTopView
 
             var torsosBlock = new TextBlock
             {
-                Text = "HeadsTrackedSuccess:",
+                Text = "TorsosTrackedSuccess:",
                 Margin = new Thickness(30, 220, 0, 0),
                 TextAlignment = TextAlignment.Center,
                 TextWrapping = TextWrapping.Wrap,
@@ -347,12 +347,12 @@ namespace Kinect2TrackingTopView
         /// <remarks>
         /// If a body was tracked at the given time, the axis is green. If no body was tracked, the axis is red.
         /// </remarks>>
-        private static void DrawEnergyGraphXAxis(List<int> trackingHistory)
+        private static void DrawEnergyGraphXAxis(List<Dictionary<int, double>> energyHistory)
         {
-            var axisSegmentLength = _widthCanvasEnergyGraph/trackingHistory.Count;
-            var strokeThickness = 8;
+            var axisSegmentLength = _widthCanvasEnergyGraph / energyHistory.Count;
+            const int strokeThickness = 8;
 
-            for (var i = 0; i < trackingHistory.Count; i++)
+            for (var i = 0; i < energyHistory.Count; i++)
             {
                 var axis = new Line
                 {
@@ -361,7 +361,7 @@ namespace Kinect2TrackingTopView
                     X2 = (i + 1)*axisSegmentLength,
                     Y1 = _heightCanvasEnergyGraph + strokeThickness / 2,
                     Y2 = _heightCanvasEnergyGraph + strokeThickness / 2,
-                    Stroke = trackingHistory[i] == 0 ? Brushes.Red : Brushes.Green
+                    Stroke = energyHistory[i].Count == 0 ? Brushes.Red : Brushes.Green
                 };
 
                 _energyGraphCanvas.Children.Add(axis);

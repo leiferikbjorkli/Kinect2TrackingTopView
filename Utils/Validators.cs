@@ -16,24 +16,6 @@ namespace Kinect2TrackingTopView
     /// </summary>
     static class Validators
     {
-        /// <summary>
-        /// Calculates the accumulated difference in depths from the current frame and the previous for certain indexes.
-        /// </summary>
-        /// <remarks>
-        /// NOT USED
-        /// </remarks>
-        public static bool EvaluateMovementInFrame(List<int> headPointIndexes, float minDifferencePreviousFrame)
-        {
-            float differenceFromPreviousFrame = 0;
-
-            for (int i = 0; i < headPointIndexes.Count; i++)
-            {
-                differenceFromPreviousFrame +=
-                    Math.Abs(GlobVar.PreviousFrame[headPointIndexes[i]].Z - GlobVar.SubtractedFilteredPointCloud[headPointIndexes[i]].Z);
-            }
-
-            return differenceFromPreviousFrame >= minDifferencePreviousFrame;
-        }
 
         /// <summary>
         /// Evaluates the size of the candidate head region against thresholds for maximum and minimum size.
@@ -44,48 +26,48 @@ namespace Kinect2TrackingTopView
             return count > Thresholds.ValidatorsHeadPointMinCount && count < Thresholds.ValidatorsHeadPointMaxCount;
         }
 
-        /// <summary>
-        /// Evaluates the difference between input head region and a average head spherical shape.
-        /// </summary>
-        /// /// <remarks>
-        /// NOT USED
-        /// </remarks>
-        public static bool IsSphericalShape(List<int> headPointIndexes, int highestPointIndex, double headSphereMaxError)
-        {
-            const float radiusHumanHead = GlobVar.RadiusHumanHead;
-            const float maxDepth = GlobVar.MaxSensingDepth;
+        ///// <summary>
+        ///// Evaluates the difference between input head region and a average head spherical shape.
+        ///// </summary>
+        ///// /// <remarks>
+        ///// NOT USED
+        ///// </remarks>
+        //public static bool IsSphericalShape(List<int> headPointIndexes, int highestPointIndex, double headSphereMaxError)
+        //{
+        //    const float radiusHumanHead = GlobVar.RadiusHumanHead;
+        //    const float maxDepth = GlobVar.MaxSensingDepth;
 
-            CameraSpacePoint highestPoint = GlobVar.SubtractedFilteredPointCloud[highestPointIndex];
+        //    CameraSpacePoint highestPoint = GlobVar.SubtractedFilteredPointCloud[highestPointIndex];
 
-            var headCenter = new CameraSpacePoint()
-            {
-                X = highestPoint.X,
-                Y = highestPoint.Y,
-                Z = highestPoint.Z - radiusHumanHead
-            };
+        //    var headCenter = new CameraSpacePoint()
+        //    {
+        //        X = highestPoint.X,
+        //        Y = highestPoint.Y,
+        //        Z = highestPoint.Z - radiusHumanHead
+        //    };
 
-            double totalError = 0.0;
-            int validPixelCount = 0;
+        //    double totalError = 0.0;
+        //    int validPixelCount = 0;
 
-            foreach (var headPointIndex in headPointIndexes)
-            {
-                CameraSpacePoint headPoint = GlobVar.SubtractedFilteredPointCloud[headPointIndex];
+        //    foreach (var headPointIndex in headPointIndexes)
+        //    {
+        //        CameraSpacePoint headPoint = GlobVar.SubtractedFilteredPointCloud[headPointIndex];
 
-                if (headPoint.Z != maxDepth && !float.IsInfinity(headPoint.X) && !float.IsInfinity(headPoint.Y))
-                {
-                    double error = radiusHumanHead*radiusHumanHead -
-                                   (headPoint.Z - headCenter.Z)*(headPoint.Z - headCenter.Z) +
-                                   (headPoint.Y - headCenter.Y)*(headPoint.Y - headCenter.Y) +
-                                   (headPoint.X - headCenter.X)*(headPoint.X - headCenter.X);
+        //        if (headPoint.Z != maxDepth && !float.IsInfinity(headPoint.X) && !float.IsInfinity(headPoint.Y))
+        //        {
+        //            double error = radiusHumanHead*radiusHumanHead -
+        //                           (headPoint.Z - headCenter.Z)*(headPoint.Z - headCenter.Z) +
+        //                           (headPoint.Y - headCenter.Y)*(headPoint.Y - headCenter.Y) +
+        //                           (headPoint.X - headCenter.X)*(headPoint.X - headCenter.X);
 
-                    totalError += Math.Abs(error);
-                    validPixelCount++;
-                }
-            }
-            double meanError = totalError / validPixelCount;
+        //            totalError += Math.Abs(error);
+        //            validPixelCount++;
+        //        }
+        //    }
+        //    double meanError = totalError / validPixelCount;
 
-            return meanError < headSphereMaxError;
-        }
+        //    return meanError < headSphereMaxError;
+        //}
 
     }
 }

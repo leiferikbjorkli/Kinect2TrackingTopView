@@ -55,7 +55,7 @@ namespace Kinect2TrackingTopView
             ClearHeatCanvas();
         }
 
-        private void ClearHeatCanvas()
+        private static void ClearHeatCanvas()
         {
             GlobVar.HeatCanvas = new int[GlobVar.ScaledFrameLength];
         }
@@ -86,7 +86,7 @@ namespace Kinect2TrackingTopView
             return normalizedHeatMap;
         }
 
-        public byte[] CreateBgraMapFromHeatMap(Dictionary<int, int>[] normalizedHeatMap)
+        public static byte[] CreateBgraMapFromHeatMap(Dictionary<int, int>[] normalizedHeatMap)
         {
             var bgraMap = new byte[GlobVar.ScaledFrameLength * 4];
 
@@ -110,7 +110,7 @@ namespace Kinect2TrackingTopView
             return bgraMap;
         }
 
-        private byte[] GetColorFromHeatData(Dictionary<int,int> heatDictionary,int i)
+        private static byte[] GetColorFromHeatData(Dictionary<int,int> heatDictionary,int i)
         {
             int totalIntensity = 0;
             foreach (var element in heatDictionary)

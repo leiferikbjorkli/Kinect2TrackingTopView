@@ -57,7 +57,7 @@ namespace Kinect2TrackingTopView
 
         public List<int> GetHeadCandidates()
         {
-            List<int> possibleHeadCandidates = SlideWindow(GlobVar.HaarOuterWindowSize, GlobVar.HaarInnerWindowSize,
+            List<int> possibleHeadCandidates = SlideWindow(GlobVar.HaarOuterWindowWidth, GlobVar.HaarInnerWindowWidth,
                 Thresholds.HaarDifferenceBetweenInnerAndOuterRectangle);
 
             DisjointSet groupedHeadCandidates = GroupCandidates(possibleHeadCandidates);
@@ -70,19 +70,19 @@ namespace Kinect2TrackingTopView
         /// <summary>
         /// Slides a window with a subwindow with sizes specified by the input parameters over the frame. The average depth in the windows are compared and if above a certain threshold considered to be head candidates.
         /// </summary>
-        private List<int> SlideWindow(int outerWindowSize, int innerWindowWidth, float windowDifferenceThreshold)
+        private List<int> SlideWindow(int outerWindowWidth, int innerWindowWidth, float windowDifferenceThreshold)
         {
             var candidates = new List<int>();
 
-            int marginInnerWindow = (outerWindowSize - innerWindowWidth) / 2;
+            int marginInnerWindow = (outerWindowWidth - innerWindowWidth) / 2;
             int innerWindowArea = innerWindowWidth*innerWindowWidth;
 
-            for (int i = 0; i < GlobVar.ScaledFrameHeight - innerWindowWidth; i += 2)
+            for (int i  = 0; i < GlobVar.ScaledFrameHeight - innerWindowWidth; i += 2)
             {
                 for (int j = 0; j < GlobVar.ScaledFrameWidth - innerWindowWidth; j += 2)
                 {
-                    int outerWindowHeight = outerWindowSize;
-                    int outerWindowWidth = outerWindowSize;
+                    int outerWindowHeight = outerWindowWidth;
+                    int outerWindowTempWidth = outerWindowWidth;
 
                     int iOuter = i - marginInnerWindow;
                     int jOuter = j - marginInnerWindow;
@@ -94,18 +94,18 @@ namespace Kinect2TrackingTopView
                     }
                     if (jOuter < 0)
                     {
-                        outerWindowWidth += jOuter;
+                        outerWindowTempWidth += jOuter;
                         jOuter = 0;
                     }
-                    if (iOuter + outerWindowSize > GlobVar.ScaledFrameHeight - 1)
+                    if (iOuter + outerWindowWidth > GlobVar.ScaledFrameHeight - 1)
                     {
-                        outerWindowHeight += iOuter + outerWindowSize - GlobVar.ScaledFrameHeight - 1;
+                        outerWindowHeight += iOuter + outerWindowWidth - GlobVar.ScaledFrameHeight - 1;
                         iOuter = GlobVar.ScaledFrameHeight - 1 - outerWindowHeight;
                     }
-                    if (jOuter + outerWindowSize > GlobVar.ScaledFrameWidth - 1)
+                    if (jOuter + outerWindowWidth > GlobVar.ScaledFrameWidth - 1)
                     {
-                        outerWindowWidth += jOuter + outerWindowSize - GlobVar.ScaledFrameWidth - 1;
-                        jOuter = GlobVar.ScaledFrameWidth - 1 - outerWindowWidth;
+                        outerWindowTempWidth += jOuter + outerWindowWidth - GlobVar.ScaledFrameWidth - 1;
+                        jOuter = GlobVar.ScaledFrameWidth - 1 - outerWindowTempWidth;
                     }
 
                     int innerIndexA = GlobUtils.GetIndex(j, i);
@@ -114,9 +114,9 @@ namespace Kinect2TrackingTopView
                     int innerIndexD = GlobUtils.GetIndex(j + innerWindowWidth, i + innerWindowWidth);
 
                     int outerIndexA = GlobUtils.GetIndex(jOuter, iOuter);
-                    int outerIndexB = GlobUtils.GetIndex(jOuter + outerWindowWidth, iOuter);
+                    int outerIndexB = GlobUtils.GetIndex(jOuter + outerWindowTempWidth, iOuter);
                     int outerIndexC = GlobUtils.GetIndex(jOuter, iOuter + outerWindowHeight);
-                    int outerIndexD = GlobUtils.GetIndex(jOuter + outerWindowWidth, iOuter + outerWindowHeight);
+                    int outerIndexD = GlobUtils.GetIndex(jOuter + outerWindowTempWidth, iOuter + outerWindowHeight);
 
                     int outerWindowArea = GlobUtils.CalculateRectangleAreaFromIndexes(outerIndexA, outerIndexB, outerIndexC);
 
@@ -136,9 +136,13 @@ namespace Kinect2TrackingTopView
                     {
                         int candidate = GlobUtils.GetHighestValidPointIndexInRectangle(innerIndexB, innerIndexC);
                         candidates.Add(candidate);
-                        if (Debugger.ShowHaarRects)
+                        if (Logger.ShowHaarInnerRects)
                         {
                             GraphicsUtils.DrawRectangle(new IndexRectangle(innerIndexA, innerIndexB, innerIndexC));
+                        }
+                        if (Logger.ShowHaarOuterRects)
+                        {
+                            GraphicsUtils.DrawRectangle(new IndexRectangle(outerIndexA, outerIndexB, outerIndexC));
                         }
                     }
                 }

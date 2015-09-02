@@ -12,16 +12,23 @@ using System.Threading.Tasks;
 
 namespace Kinect2TrackingTopView
 {
-    static class Debugger
+    /// <summary>
+    /// Class that logs and visualizes runtime information to the console and the monitoring window.
+    /// </summary>
+    static class Logger
     {
-        public const bool LogTotalTime = false;
-        public const bool LogTime = false;
-        public const bool LogTimeGeodesic = false;
-        public const bool LogTimeHaar = false;
+        public const bool LogTimeTotal = false;
+        public const bool LogTimeScaling = false;
         public const bool LogTimeMedian = false;
+        public const bool LogTimeHaar = false;
+        public const bool LogTimeClassificationValidation = false;
+        public const bool LogTimeGeodesic = false;
+        public const bool LogTimeCreateBodies = false;
         public const bool PrintFps = false;
+        public const bool PrintTotalFps = true;
 
-        public const bool ShowHaarRects = true;
+        public const bool ShowHaarInnerRects = false;
+        public const bool ShowHaarOuterRects = false;
         public const bool ShowCandidateHeadpixel = false;
         public const bool ShowTopHeadpixel = false;
         public const bool ShowHeadpixelsBeforeValidation = false;
@@ -30,18 +37,21 @@ namespace Kinect2TrackingTopView
         public const bool ShowValidatedTopHeadpixel = false;
         public const bool ShowValidatedHeadPixels = false;
         public const bool ShowGeodesicGraph = false;
-        public const bool ShowTorso = false;
 
+        public const bool ShowHeadRegionPixels = false;
         public const bool ShowHeadCenterPoint = false;
         public const bool ShowHeadAvgCenterPoint = true;
         public const bool ShowHeadAvgCenterLastTenFrames = false;
 
-        public const bool ShowTorsoCenterPoint = false;
-        public const bool ShowTorsoAvgCenterPoint = true;
+        public const bool ShowTorsoPixels = false;
+        public const bool ShowTorsoCenterPoint = true;
+        public const bool ShowTorsoAvgCenterPoint = false;
 
         public const bool ShowHandPixels = false;
         public const bool ShowHandCenterPoint = false;
         public const bool ShowHandAvgPoint = false;
+
+        public const bool DrawEnergyValue = false;
 
         /// <summary>
         /// Calculate frames per second.
@@ -50,6 +60,15 @@ namespace Kinect2TrackingTopView
         {
             double deltaTime = currentTime.Subtract(lastTime).TotalMilliseconds;
             return 1000 / deltaTime;
+        }
+
+        /// <summary>
+        /// Calculate average frames per second.
+        /// </summary>
+        public static double CalculateAverageFps(List<TimeSpan> timestamps)
+        {
+            var totalTime = timestamps[timestamps.Count - 1].Subtract(timestamps[0]);
+            return timestamps.Count/totalTime.TotalSeconds;
         }
 
         /// <summary>

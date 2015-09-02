@@ -14,7 +14,7 @@ namespace Kinect2TrackingTopView
         public static Dictionary<int, Dictionary<int, float>> GeodesicGraph { get; private set; }
 
         /// <summary>
-        ///     Creates a geodesic graph of the foreground. Points in cameraspace that are closer than a threshold are connected.
+        ///     Creates a geodesic graph of the foreground. Points in cameraspace that are closer than a threshold are connected in the graph.
         ///     Also, the points need to be closer than threshold to the already validated candidate head points.
         /// </summary>
         public static void CreateGeodesicGraph(CameraSpacePoint[] pointCloud)
@@ -31,15 +31,18 @@ namespace Kinect2TrackingTopView
                     var neighbourNodes = new Dictionary<int, float>();
                     foreach (var neighbour in neighbourList)
                     {
-                        if (pointCloud[neighbour].Z != maxDepth && neighbour != -1)
+                        if (neighbour != -1)
                         {
-                            var dist = GlobUtils.GetEuclideanDistance(neighbour, i);
-
-                            if (dist < Thresholds.GeodesicGraphMaxDistanceBetweenPoints &&
-                                BodyUtils.GetDistanceToClosestHeadCandidate(neighbour) <
-                                Thresholds.GeodesicGraphMaxDistanceToCandidates)
+                            if (pointCloud[neighbour].Z != maxDepth)
                             {
-                                neighbourNodes.Add(neighbour, dist);
+                                var dist = GlobUtils.GetEuclideanDistance(neighbour, i);
+
+                                if (dist < Thresholds.GeodesicGraphMaxDistanceBetweenPoints &&
+                                    BodyUtils.GetDistanceToClosestHeadCandidate(neighbour) <
+                                    Thresholds.GeodesicGraphMaxDistanceToCandidates)
+                                {
+                                    neighbourNodes.Add(neighbour, dist);
+                                }
                             }
                         }
                     }
@@ -49,7 +52,7 @@ namespace Kinect2TrackingTopView
                     }
                 }
             }
-            if (Debugger.ShowGeodesicGraph)
+            if (Logger.ShowGeodesicGraph)
             {
                 foreach (var v in GeodesicGraph)
                 {

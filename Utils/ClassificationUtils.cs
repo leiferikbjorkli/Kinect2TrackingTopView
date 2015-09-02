@@ -129,7 +129,7 @@ namespace Kinect2TrackingTopView
                     CameraSpacePoint neighbourPoint = GlobVar.SubtractedFilteredPointCloud[neighbourIndex];
 
                     if (!headPixels.Contains(neighbourIndex) &&
-                        Thresholds.ClassificationLabelingMaxDistanceBetweenPoints > GlobUtils.GetHeightDifference(currentPoint,neighbourPoint))
+                        Thresholds.ClassificationLabelingMaxHeightBetweenPoints > GlobUtils.GetHeightDifference(currentPoint,neighbourPoint))
                     {
                         q.Enqueue(neighbourIndex);
                         headPixels.Add(neighbourIndex);

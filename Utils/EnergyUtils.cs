@@ -11,21 +11,21 @@ using System.Windows.Media.Media3D;
 namespace Kinect2TrackingTopView
 {
     /// <summary>
-    /// Class that calculates the energy use for each frame.
+    /// Class that calculates the mechanical energy use for each frame.
     /// </summary>
     static class EnergyUtils
     {
         private const double Gravity = 9.81f;
-        private const double BodyMass = 62f;
+        private const double BodyMass = 50f;
         private const double HeadMass = BodyMass * 0.23f;
         private const double TorsoMass = BodyMass * 0.58f;
         private const double ForeArmMass = BodyMass * 0.018f;
         private const double UpperArmMass = BodyMass * 0.035f;
 
         /// <summary>
-        /// Attributes the body object with the calculated energy-use since last frame.
+        /// Attributes the body object with the calculated mechanical energy-use since last frame.
         /// </summary>
-        public static void UpdateBodyEnergy(Body body)
+        public static void CalculateBodyMechanicalEnergy(Body body)
         {
             bool handTracking = false;
 

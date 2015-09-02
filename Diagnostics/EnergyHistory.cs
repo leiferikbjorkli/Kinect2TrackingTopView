@@ -14,12 +14,10 @@ namespace Kinect2TrackingTopView
     class EnergyHistory
     {
         private static List<Dictionary<int, double>> _energyHistory;
-        private static List<TimeSpan> _timestamps;
 
         public EnergyHistory()
         {
             _energyHistory = new List<Dictionary<int, double>>();
-            _timestamps = new List<TimeSpan>();
         }
 
         public List<Dictionary<int, double>> Get()
@@ -55,7 +53,7 @@ namespace Kinect2TrackingTopView
             return filteredEnergyHistory;
         }
 
-        private int GetMostTrackedBodyIdFromEnergyHistory(List<Dictionary<int, double>> energyHistory)
+        private static int GetMostTrackedBodyIdFromEnergyHistory(List<Dictionary<int, double>> energyHistory)
         {
             var count = new Dictionary<int, int>();
 
@@ -80,7 +78,7 @@ namespace Kinect2TrackingTopView
         /// <summary>
         /// One dimensional median filter that smoothes away energy spikes that could occur from occasional lost tracking.
         /// </summary>
-        private List<Dictionary<int, double>> MedianOneDimension(List<Dictionary<int, double>> energyHistory)
+        private static List<Dictionary<int, double>> MedianOneDimension(List<Dictionary<int, double>> energyHistory)
         {
             var smoothedEnergyHistory = new List<Dictionary<int, double>>();
 
@@ -127,7 +125,7 @@ namespace Kinect2TrackingTopView
             return smoothedEnergyHistory;
         }
 
-        public void Update(List<Body> bodies, TimeSpan timestamp)
+        public static void Update(List<Body> bodies)
         {
             var currentFrameEnergy = new Dictionary<int,double>();
             foreach (var body in bodies)
@@ -136,11 +134,10 @@ namespace Kinect2TrackingTopView
             }
 
             _energyHistory.Add(currentFrameEnergy);
-            _timestamps.Add(timestamp);
         }
 
         /// <summary>
-        /// Accumulates the total timespan where a body was tracked and energy-use was calculated.
+        /// Calculates the total timespan where a body was tracked and energy-use was calculated.
         /// </summary>
         private static TimeSpan CalculateTotalTimeWithTracking()
         {
@@ -152,7 +149,7 @@ namespace Kinect2TrackingTopView
             {
                 if (_energyHistory[i].Count > 0)
                 {
-                    var currentTimeStamp = _timestamps[i];
+                    var currentTimeStamp = GlobVar.TimeStamps[i];
                     if (hasTracking)
                     {
                         var trackingTimeSpan = currentTimeStamp.Subtract(lastTimeStamp);
@@ -172,7 +169,7 @@ namespace Kinect2TrackingTopView
             }
             return totalTime;
         }
-
+         
         /// <summary>
         /// Calculates the average Joule/s used.
         /// </summary>

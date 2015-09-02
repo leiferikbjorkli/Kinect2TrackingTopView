@@ -16,22 +16,35 @@ namespace Kinect2TrackingTopView
 {
     public static class ImageUtils
     {
+        public static CameraSpacePoint[] DepthFilter(CameraSpacePoint[] pointCloud)
+        {
+            CameraSpacePoint[] filteredPointCloud = CreateEmptyPointCloud();
+            for (int i = 0; i < pointCloud.Length; i++)
+            {
+                if (pointCloud[i].Z < GlobVar.MaxSensingDepth - 0.5)
+                {
+                    filteredPointCloud[i] = pointCloud[i];
+                }
+            }
+            return filteredPointCloud;
+        }
+
         /// <summary>
         /// Processes the input point cloud with a median filter with a 3x3 kernel to remove noise. 
         /// </summary>
         /// <param name="pointCloud"></param>
-        /// <param name="elementNr">Specifies the index of the pixel in the sorted kernel that is chosen.</param>
+        /// <param name="elementIndex">Specifies the index of the pixel in the sorted kernel that is chosen.</param>
         /// <remarks>
         /// To avoid unnecessary computational load, the method checks if the kernel contains useful data before sorting.
         /// </remarks>
-        public static CameraSpacePoint[] MedianFilter3X3(CameraSpacePoint[] pointCloud, int elementNr)
+        public static CameraSpacePoint[] MedianFilter3X3(CameraSpacePoint[] pointCloud, int elementIndex)
         {
             CameraSpacePoint[] filteredPointCloud = CreateEmptyPointCloud();
 
             float[] kernel3X3 = new float[9];
-            int frameWidth = GlobVar.ScaledFrameWidth;
-            int frameHeight = GlobVar.ScaledFrameHeight;
-            float maxDepth = GlobVar.MaxSensingDepth;
+            const int frameWidth = GlobVar.ScaledFrameWidth;
+            const int frameHeight = GlobVar.ScaledFrameHeight;
+            const float maxDepth = GlobVar.MaxSensingDepth;
 
             for (int i = 1; i < frameHeight - 1; i++)
             {
@@ -53,7 +66,7 @@ namespace Kinect2TrackingTopView
                     if (ContainsValidData(kernel3X3))
                     {
                         Array.Sort(kernel3X3);
-                        currentPoint.Z = kernel3X3[elementNr];
+                        currentPoint.Z = kernel3X3[elementIndex];
 
                         if (currentPoint.Z != maxDepth)
                         {
@@ -164,12 +177,12 @@ namespace Kinect2TrackingTopView
                     float sumZ = 0;
                     int validPixels = 0;
 
-                    CameraSpacePoint upLeft = cameraSpacePoints[(i * frameWidth) + j];
-                    float depthCurrent = upLeft.Z;
+                    CameraSpacePoint current = cameraSpacePoints[(i * frameWidth) + j];
+                    float depthCurrent = current.Z;
                     if (!float.IsInfinity(depthCurrent))
                     {
-                        sumX += upLeft.X;
-                        sumY += upLeft.Y;
+                        sumX += current.X;
+                        sumY += current.Y;
                         sumZ += depthCurrent;
                         validPixels++;
                     }
